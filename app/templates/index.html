@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="hero-section p-5 mb-4">
+    <div class="row align-items-center">
+        <div class="col-lg-8">
+            <h1 class="display-4 fw-bold mb-3">DataSync Pro</h1>
+            <p class="lead mb-4">Modern CSV/Excel data processing with intelligent duplicate detection and seamless database synchronization.</p>
+            <div class="d-flex gap-3 flex-wrap">
+                <a href="/csv/upload" class="btn btn-light btn-lg px-4">
+                    <i class="fas fa-upload me-2"></i>Start Processing
+                </a>
+                <a href="/csv/check-duplicate" class="btn btn-outline-light btn-lg px-4">
+                    <i class="fas fa-search me-2"></i>Check Duplicates
+                </a>
+            </div>
+        </div>
+        <div class="col-lg-4 text-center">
+            <i class="fas fa-database fa-5x opacity-75"></i>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-5">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="feature-icon bg-primary text-white mx-auto">
+                    <i class="fas fa-file-csv fa-xl"></i>
+                </div>
+                <h5 class="card-title">Multi-Format Support</h5>
+                <p class="card-text">Process CSV, XLS, and XLSX files with automatic format detection and validation.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="feature-icon bg-success text-white mx-auto">
+                    <i class="fas fa-sync-alt fa-xl"></i>
+                </div>
+                <h5 class="card-title">Smart Sync</h5>
+                <p class="card-text">Intelligent matching of existing records with seamless new record insertion.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="feature-icon bg-warning text-white mx-auto">
+                    <i class="fas fa-shield-alt fa-xl"></i>
+                </div>
+                <h5 class="card-title">Data Validation</h5>
+                <p class="card-text">Comprehensive validation with detailed error reporting and duplicate detection.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>Required Data Structure
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-3">Your files must contain these exact column headers:</p>
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-key text-primary me-2"></i>
+                            <span><strong>sub_gl_code</strong> - Primary identifier</span>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-tag text-success me-2"></i>
+                            <span><strong>sub_head</strong> - Category/subject</span>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-map-marker-alt text-warning me-2"></i>
+                            <span><strong>region</strong> - Geographic region</span>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-code text-info me-2"></i>
+                            <span><strong>branch_code</strong> - Branch identifier</span>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-building text-secondary me-2"></i>
+                            <span><strong>branch_name</strong> - Branch location name</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
