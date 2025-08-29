@@ -4,7 +4,6 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
-from app.utils.database import engine, Base
 from app.routes import csv_routes, insert_update_routes
 
 # Configure logging
@@ -29,13 +28,6 @@ app = FastAPI(
 templates_path = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(templates_path))
 
-
-# Create database tables
-@app.on_event("startup")
-async def startup_db_client():
-    logger.info("Creating database tables if they don't exist")
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database setup completed")
 
 
 # Include routers

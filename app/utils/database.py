@@ -1,38 +1,32 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load env variables
 load_dotenv()
 
-# Database URL from environment variable or use SQLite as default
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./csv_data.db")
+# Use an async database URL (example uses PostgreSQL)
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./csv_data.db")
 
-# Create engine with connection pooling for better performance
-engine = create_engine(
+# Create async engine
+engine = create_async_engine(
     DATABASE_URL,
-    poolclass=QueuePool,
+    echo=False,
     pool_size=5,
     max_overflow=10,
-    pool_timeout=30,
-    pool_recycle=1800,
-    echo=False,
 )
 
 # Create session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+AsyncSessionLocal = sessionmaker(
+    bind=engine, 
+    class_=AsyncSession, 
+    expire_on_commit=False,
+)
 
-# Base class for SQLAlchemy models
 Base = declarative_base()
 
-
-def get_db():
-    """Database dependency for FastAPI endpoints"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# Async DB dependency for FastAPI
+async def get_db():
+    async with AsyncSessionLocal() as session:
+        yield session

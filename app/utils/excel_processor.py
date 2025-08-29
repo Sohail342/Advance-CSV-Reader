@@ -90,8 +90,8 @@ def excel_to_records(
             cleaned_record[header] = value
 
         # Validate primary key
-        if not cleaned_record["sub_gl_code"]:
-            logger.warning(f"Row {i}: Missing primary key (sub_gl_code)")
+        if not cleaned_record["SubGLCode"]:
+            logger.warning(f"Row {i}: Missing primary key (SubGLCode)")
             continue
 
         cleaned_records.append(cleaned_record)

@@ -46,7 +46,7 @@ class RecordRequest(BaseModel):
         return v
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "sub_gl_code": "GL001",
                 "sub_head": "Office Supplies",
@@ -87,8 +87,8 @@ async def check_existing_record(
 
         result = await db.execute(
             select(CSVHeaders).filter(
-                CSVHeaders.sub_gl_code == sub_gl_code.strip(),
-                CSVHeaders.branch_code == branch_code.strip(),
+                CSVHeaders.SubGLCode == sub_gl_code.strip(),
+                CSVHeaders.BCode == branch_code.strip(),
             )
         )
         record = result.scalar_one_or_none()
@@ -97,13 +97,13 @@ async def check_existing_record(
             return {
                 "exists": True,
                 "record": {
-                    "id": record.id,
-                    "sub_gl_code": record.sub_gl_code,
-                    "sub_head": record.sub_head,
-                    "region": record.region,
-                    "branch_code": record.branch_code,
-                    "branch_name": record.branch_name,
-                },
+                        "id": record.id,
+                        "sub_gl_code": record.SubGLCode,
+                        "sub_head": record.SubHead,
+                        "region": record.Region,
+                        "branch_code": record.BCode,
+                        "branch_name": record.BName,
+                    },
             }
         else:
             return {"exists": False}
@@ -117,10 +117,10 @@ async def check_existing_record(
 async def insert_update_record(request: RecordRequest, db: AsyncSession = Depends(get_db)):
     """Insert a new record or update an existing one"""
     try:
-        data = request.dict()
+        data = request.model_dump()
 
         # Clean data
-        for key in ["sub_gl_code", "sub_head", "region", "branch_code", "branch_name"]:
+        for key in ["CostCenterID", "SubHeadID", "SubGLCode", "SubHead", "Region", "BCode", "BName", "BudgetID", "Head", "HeadID", "CostCenter", "BudgetAmount", "ValidityDate", "Description"]:
             if key in data and data[key]:
                 data[key] = data[key].strip()
 
@@ -137,13 +137,22 @@ async def insert_update_record(request: RecordRequest, db: AsyncSession = Depend
                 raise HTTPException(status_code=404, detail="Record not found")
 
             # Update fields
-            record.sub_gl_code = data["sub_gl_code"]
-            record.sub_head = data["sub_head"]
-            record.region = data["region"]
-            record.branch_code = data["branch_code"]
-            record.branch_name = data["branch_name"]
+            record.CostCenterID = data["CostCenterID"]
+            record.SubHeadID = data["SubHeadID"]
+            record.SubGLCode = data["SubGLCode"]
+            record.SubHead = data["SubHead"]
+            record.Region = data["Region"]
+            record.BCode = data["BCode"]
+            record.BName = data["BName"]
+            record.BudgetID = data["BudgetID"]
+            record.Head = data["Head"]
+            record.HeadID = data["HeadID"]
+            record.CostCenter = data["CostCenter"]
+            record.BudgetAmount = data["BudgetAmount"]
+            record.ValidityDate = data["ValidityDate"]
+            record.Description = data["Description"]
 
-            db.commit()
+            await db.commit()
 
             return RecordResponse(
                 success=True, message="Record updated successfully", record_id=record.id
@@ -153,8 +162,8 @@ async def insert_update_record(request: RecordRequest, db: AsyncSession = Depend
             # Check if record already exists
             result = await db.execute(
                 select(CSVHeaders).filter(
-                    CSVHeaders.sub_gl_code == data["sub_gl_code"],
-                    CSVHeaders.branch_code == data["branch_code"],
+                    CSVHeaders.SubGLCode == data["SubGLCode"],
+                    CSVHeaders.CostCenterID == data["CostCenterID"],
                 )
             )
             existing_record = result.scalar_one_or_none()
@@ -167,8 +176,8 @@ async def insert_update_record(request: RecordRequest, db: AsyncSession = Depend
 
             new_record = CSVHeaders(**data)
             db.add(new_record)
-            db.commit()
-            db.refresh(new_record)
+            await db.commit()
+            await db.refresh(new_record)
 
             return RecordResponse(
                 success=True,
@@ -180,7 +189,7 @@ async def insert_update_record(request: RecordRequest, db: AsyncSession = Depend
         raise
     except Exception as e:
         logger.error(f"Error processing record: {str(e)}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -198,11 +207,11 @@ async def get_record(record_id: int, db: AsyncSession = Depends(get_db)):
             "success": True,
             "record": {
                 "id": record.id,
-                "sub_gl_code": record.sub_gl_code,
-                "sub_head": record.sub_head,
-                "region": record.region,
-                "branch_code": record.branch_code,
-                "branch_name": record.branch_name,
+                "sub_gl_code": record.SubGLCode,
+                "sub_head": record.SubHead,
+                "region": record.Region,
+                "branch_code": record.BCode,
+                "branch_name": record.BName,
             },
         }
 
@@ -223,8 +232,8 @@ async def delete_record(record_id: int, db: AsyncSession = Depends(get_db)):
         if not record:
             raise HTTPException(status_code=404, detail="Record not found")
 
-        db.delete(record)
-        db.commit()
+        await db.delete(record)
+        await db.commit()
 
         return RecordResponse(success=True, message="Record deleted successfully")
 
@@ -232,5 +241,5 @@ async def delete_record(record_id: int, db: AsyncSession = Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"Error deleting record: {str(e)}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
