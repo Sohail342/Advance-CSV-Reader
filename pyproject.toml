@@ -10,4 +10,5 @@ dependencies = [
     "black>=25.1.0",
     "matplotlib>=3.10.5",
     "requests>=2.32.5",
+    "uvicorn>=0.35.0",
 ]

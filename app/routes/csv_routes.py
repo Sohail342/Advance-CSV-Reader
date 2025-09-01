@@ -19,10 +19,12 @@ from fastapi import (
     BackgroundTasks,
     Query as Q,
 )
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
+from app.schemas import CSVRecordOut
+from sqlalchemy.inspection import inspect
 
 from app.models import CSVHeaders
 from app.utils.database import get_db
@@ -32,8 +34,6 @@ from app.utils.excel_processor import (
     excel_to_records,
     EXCEL_EXTENSIONS,
 )
-from app.schemas import CSVRecordOut
-from sqlalchemy.inspection import inspect
 
 # get column keys dynamically
 def object_as_dict(obj):
@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/csv", tags=["CSV Processing"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
-REQUIRED_HEADERS = ["BudgetID", "HeadID", "Head", "SubHeadID", "SubGLCode", "SubHead", "CostCenterID", "CostCenter", "Region", "BCode", "BName", "BudgetAmount", "ValidityDate", "Description"]
+REQUIRED_HEADERS = ["SubGLCode", "CostCenterID"]
 
 csv_store: Dict[str, Dict[str, Optional[str]]] = {}
 
@@ -104,11 +104,22 @@ async def check_duplicate_file(
                     "row": i,
                     "SubGLCode": rec["SubGLCode"],
                     "CostCenterID": rec["CostCenterID"],
+                    "SubHeadID": rec["SubHeadID"],
+                    "SubHead":rec["SubHead"],
+                    "Region":rec["Region"],
+                    "BCode":rec["BCode"],
+                    "BName":rec["BName"],
+                    "BudgetID":rec["BudgetID"],
+                    "Head":rec["Head"],
+                    "HeadID":rec["HeadID"],
+                    "CostCenter":rec["CostCenter"],
+                    "BudgetAmount":rec["BudgetAmount"],
+                    "ValidityDate":rec["ValidityDate"],
+                    "Description":rec["Description"],                    
                     "full_record": rec,
                 }
             )
-
-    if remove:
+    if  remove:
         # Generate cleaned file for download
         cleaned_df = pd.DataFrame(unique_records)
 
@@ -146,27 +157,21 @@ async def check_duplicate_file(
         )
 
 
-@router.post("/remove_duplicates", response_class=HTMLResponse)
-async def remove_duplicate_records(
-    request: Request, file: UploadFile = File(...), db: AsyncSession = Depends(get_db)
+@router.post("/remove_duplicates")
+async def remove_duplicate_records_file(
+    file: UploadFile = File(...),
 ):
     """
-    Secure handler for removing duplicate records from uploaded files.
-    Provides data integrity checks and user feedback.
+    API-style handler that removes duplicate records and returns the cleaned file directly.
     """
     try:
         fname = file.filename.lower()
         ext = os.path.splitext(fname)[1]
 
-        # Validate file type
         if ext not in EXCEL_EXTENSIONS and ext != ".csv":
-            return templates.TemplateResponse(
-                "check_duplicate.html",
-                {
-                    "request": request,
-                    "title": "Error",
-                    "error": "Invalid file format. Please upload CSV or Excel files only.",
-                },
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Invalid file format. Please upload CSV or Excel files only."},
             )
 
         # Process file
@@ -183,49 +188,23 @@ async def remove_duplicate_records(
             ]
 
         if not records:
-            return templates.TemplateResponse(
-                "check_duplicate.html",
-                {
-                    "request": request,
-                    "title": "Error",
-                    "error": "No valid records found in the file. Please check your file format and required headers.",
-                },
+            return JSONResponse(
+                status_code=400,
+                content={"error": "No valid records found in the file. Please check your file format and required headers."},
             )
 
-        # Identify and remove duplicates
+        # Deduplicate
         seen = set()
         unique_records = []
-        duplicates = []
-
-        for i, record in enumerate(records):
-            key = (record["sub_gl_code"], record["branch_code"])
+        for record in records:
+            key = (record["SubGLCode"], record["CostCenterID"])
             if key not in seen:
                 seen.add(key)
                 unique_records.append(record)
-            else:
-                duplicates.append(
-                    {
-                        "row": i + 1,
-                        "sub_gl_code": record["sub_gl_code"],
-                        "branch_code": record["branch_code"],
-                    }
-                )
 
-        # Data integrity check
-        if len(unique_records) == 0:
-            return templates.TemplateResponse(
-                "check_duplicate.html",
-                {
-                    "request": request,
-                    "title": "Warning",
-                    "warning": "All records were duplicates. The cleaned file will be empty.",
-                },
-            )
-
-        # Generate cleaned file
         cleaned_df = pd.DataFrame(unique_records)
 
-        # Create secure temporary file
+        # Create secure temp file
         temp_dir = tempfile.mkdtemp()
         cleaned_filename = f"cleaned_{file.filename}"
         cleaned_path = os.path.join(temp_dir, cleaned_filename)
@@ -235,31 +214,19 @@ async def remove_duplicate_records(
         else:
             cleaned_df.to_csv(cleaned_path, index=False)
 
-        return templates.TemplateResponse(
-            "check_duplicate.html",
-            {
-                "request": request,
-                "title": "Duplicates Removed Successfully",
-                "success": f"Successfully removed {len(duplicates)} duplicate records.",
-                "cleaned_file_path": cleaned_path,
-                "cleaned_filename": cleaned_filename,
-                "original_filename": file.filename,
-                "duplicates_removed": len(duplicates),
-                "total_original_records": len(records),
-                "cleaned_records_count": len(unique_records),
-                "duplicates_list": duplicates,
-            },
+        # Return cleaned file directly
+        return FileResponse(
+            path=cleaned_path,
+            filename=cleaned_filename,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            if ext in EXCEL_EXTENSIONS else "text/csv"
         )
 
     except Exception as e:
         logger.error(f"Error removing duplicates: {str(e)}")
-        return templates.TemplateResponse(
-            "check_duplicate.html",
-            {
-                "request": request,
-                "title": "Processing Error",
-                "error": f"An error occurred while processing your file: {str(e)}",
-            },
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"An error occurred while processing your file: {str(e)}"},
         )
 
 
@@ -358,7 +325,6 @@ async def process_batch(
         if rec.get("SubGLCode") and rec.get("CostCenterID")
     ]
 
-    from sqlalchemy import select
     
     stmt = select(CSVHeaders).where(
         tuple_(CSVHeaders.SubGLCode, CSVHeaders.CostCenterID).in_(lookup_pairs)

@@ -129,7 +129,7 @@ async def insert_update_record(request: RecordRequest, db: AsyncSession = Depend
         if record_id:
             # Update existing record
             result = await db.execute(
-                select(CSVHeaders).filter(CSVHeaders.id == record_id)
+                select(CSVHeaders).filter(CSVHeaders.id == int(record_id))
             )
             record = result.scalar_one_or_none()
 
@@ -171,7 +171,7 @@ async def insert_update_record(request: RecordRequest, db: AsyncSession = Depend
             if existing_record:
                 raise HTTPException(
                     status_code=409,
-                    detail="A record with this Sub GL Code and Branch Code already exists",
+                    detail="A record with this Sub GL Code and CostCenterID already exists",
                 )
 
             new_record = CSVHeaders(**data)

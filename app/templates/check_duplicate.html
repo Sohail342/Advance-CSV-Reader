@@ -104,42 +104,7 @@
             </div>
         </div>
 
-        {% if duplicates %}
-        <div class="card mb-4">
-            <div class="card-header bg-danger text-white">
-                <h4 class="mb-0">
-                    <i class="fas fa-exclamation-triangle me-2"></i>Duplicate Records Found
-                </h4>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Row #</th>
-                                <th>Sub GL Code</th>
-                                <th>Branch Code</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for duplicate in duplicates %}
-                            <tr>
-                                <td><span class="badge bg-secondary">{{ duplicate.row + 1 }}</span></td>
-                                <td><code>{{ duplicate.sub_gl_code }}</code></td>
-                                <td><code>{{ duplicate.branch_code }}</code></td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-primary" onclick="highlightRow({{ duplicate.row }})">
-                                        <i class="fas fa-search me-1"></i>View
-                                    </button>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+        <!--    -->
 
         <div class="row mb-4">
             <div class="col-md-6">
@@ -150,9 +115,18 @@
                         </h5>
                     </div>
                     <div class="card-body">
-                        <p class="text-muted">Automatically remove duplicate records and download a cleaned file.</p>
+                        <p class="text-muted">
+                            Automatically remove duplicate records and download a cleaned file.  
+                            <strong>Please re-select your file below.</strong>
+                        </p>
                         <form id="removeForm" action="/csv/remove_duplicates" method="post" enctype="multipart/form-data">
-                            <input type="hidden" name="file" id="originalFile">
+                            
+                            <!-- Show the input (not hidden) -->
+                            <div class="mb-3">
+                                <input type="file" name="file" id="file" class="form-control" accept=".csv,.xls,.xlsx" required>
+                            </div>
+
+                            <!-- Button to trigger confirmation -->
                             <button type="button" class="btn btn-warning btn-lg w-100" onclick="confirmRemoval()">
                                 <i class="fas fa-magic me-2"></i>Remove Duplicates & Download
                             </button>
@@ -160,6 +134,7 @@
                     </div>
                 </div>
             </div>
+
             <div class="col-md-6">
                 <div class="card border-info">
                     <div class="card-header bg-info text-white">
@@ -180,17 +155,77 @@
                     </div>
                 </div>
             </div>
+            <div class="text-center mt-4">
+            <div class="row g-3 justify-content-center">
+                <div class="col-md-4">
+                    <a href="/csv/check_duplicate" class="btn btn-primary btn-lg w-100">
+                        <i class="fas fa-search me-2"></i>Check Another File
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a href="/csv/upload" class="btn btn-success btn-lg w-100">
+                        <i class="fas fa-upload me-2"></i>Process This File
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a href="/" class="btn btn-outline-secondary btn-lg w-100">
+                        <i class="fas fa-home me-2"></i>Back to Home
+                    </a>
+                </div>
+            </div>
+        </div>
+        </div>
+        
+
+        {% if duplicates %}
+        <div class="card mb-4">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Duplicate Records Found
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Row #</th>
+                                <th>SubGLCode</th>
+                                <th>CostCenterID</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for duplicate in duplicates %}
+                            <tr>
+                                <td><span class="badge bg-secondary">{{ duplicate.row + 1 }}</span></td>
+                                <td><code>{{ duplicate.SubGLCode }}</code></td>
+                                <td><code>{{ duplicate.CostCenterID }}</code></td>
+                                <td><code>{{ duplicate.SubHeadID }}</code></td>
+                                <td><code>{{ duplicate.SubHead }}</code></td>
+                                <td><code>{{ duplicate.Region }}</code></td>
+                                <td><code>{{ duplicate.BCode }}</code></td>
+                                <td><code>{{ duplicate.BName }}</code></td>
+                                <td><code>{{ duplicate.BudgetID }}</code></td>
+                                <td><code>{{ duplicate.Head }}</code></td>
+                                <td><code>{{ duplicate.HeadID }}</code></td>
+                                <td><code>{{ duplicate.CostCenter }}</code></td>
+                                <td><code>{{ duplicate.BudgetAmount }}</code></td>
+                                <td><code>{{ duplicate.ValidityDate }}</code></td>
+                                <td><code>{{ duplicate.Description }}</code></td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="highlightRow({{ duplicate.row }})">
+                                        <i class="fas fa-search me-1"></i>View
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
-        <div class="alert alert-warning">
-            <h6><i class="fas fa-shield-alt me-2"></i>Data Safety Notice</h6>
-            <ul class="mb-0">
-                <li>All processing is done securely on our servers</li>
-                <li>Your original file remains unchanged</li>
-                <li>Cleaned files are temporarily stored for download and then deleted</li>
-                <li>Review duplicates before removal to ensure data integrity</li>
-            </ul>
-        </div>
         {% elif success %}
         <div class="card border-success mb-4">
             <div class="card-header bg-success text-white">
@@ -242,16 +277,16 @@
                         <thead>
                             <tr>
                                 <th>Row #</th>
-                                <th>Sub GL Code</th>
-                                <th>Branch Code</th>
+                                <th>SubGLCode</th>
+                                <th>CostCenterID</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for dup in duplicates_list %}
                             <tr>
                                 <td>{{ dup.row }}</td>
-                                <td><code>{{ dup.sub_gl_code }}</code></td>
-                                <td><code>{{ dup.branch_code }}</code></td>
+                                <td><code>{{ dup.SubGLCode }}</code></td>
+                                <td><code>{{ dup.CostCenterID }}</code></td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -270,25 +305,6 @@
         </div>
         {% endif %}
 
-        <div class="text-center mt-4">
-            <div class="row g-3 justify-content-center">
-                <div class="col-md-4">
-                    <a href="/csv/check_duplicate" class="btn btn-primary btn-lg w-100">
-                        <i class="fas fa-search me-2"></i>Check Another File
-                    </a>
-                </div>
-                <div class="col-md-4">
-                    <a href="/csv/upload" class="btn btn-success btn-lg w-100">
-                        <i class="fas fa-upload me-2"></i>Process This File
-                    </a>
-                </div>
-                <div class="col-md-4">
-                    <a href="/" class="btn btn-outline-secondary btn-lg w-100">
-                        <i class="fas fa-home me-2"></i>Back to Home
-                    </a>
-                </div>
-            </div>
-        </div>
         {% endif %}
     </div>
 </div>
@@ -442,36 +458,36 @@ function confirmRemoval() {
 function proceedRemoval() {
     const confirmModal = bootstrap.Modal.getInstance(document.getElementById('confirmModal'));
     if (confirmModal) confirmModal.hide();
-    
+
     const fileInput = document.getElementById('file');
-    if (fileInput && fileInput.files && fileInput.files.length > 0) {
-        const formData = new FormData();
-        formData.append('file', fileInput.files[0]);
-        
-        const processingModal = new bootstrap.Modal(document.getElementById('processingModal'));
-        processingModal.show();
-        
-        fetch('/csv/remove_duplicates', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.text())
-        .then(html => {
-            document.open();
-            document.write(html);
-            document.close();
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while processing your request.');
-        })
-        .finally(() => {
-            processingModal.hide();
-        });
-    } else {
-        alert('No file selected. Please select a file first.');
+    if (!fileInput || fileInput.files.length === 0) {
+        alert('Please select a file first.');
+        return;
     }
+
+    const processingModal = new bootstrap.Modal(document.getElementById('processingModal'));
+    processingModal.show();
+
+    const formData = new FormData(document.getElementById('removeForm'));
+
+    fetch('/csv/remove_duplicates', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.blob())
+    .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'cleaned_file.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    })
+    .catch(err => alert('Error: ' + err))
+    .finally(() => processingModal.hide());
 }
+
 
 function downloadOriginal() {
     const fileInput = document.getElementById('file');
@@ -498,7 +514,7 @@ function downloadDuplicatesList() {
     }
     
     let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Row Number,Sub GL Code,Branch Code\n";
+    csvContent += "Row Number,SubGLCode,CostCenterID\n";
     
     const rows = table.querySelectorAll('tbody tr');
     if (rows.length === 0) {
