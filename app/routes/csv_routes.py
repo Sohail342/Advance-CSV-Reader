@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/csv", tags=["CSV Processing"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
-REQUIRED_HEADERS = ["SubGLCode", "CostCenterID"]
+REQUIRED_HEADERS = ["SubGLCode", "CostCenterID", "SubHeadID", "SubHead", "Region", "BCode", "BName", "BudgetID", "Head", "HeadID", "CostCenter", "BudgetAmount", "ValidityDate", "Description"]
 
 csv_store: Dict[str, Dict[str, Optional[str]]] = {}
 
@@ -116,7 +116,7 @@ async def check_duplicate_file(
                     "BudgetAmount":rec["BudgetAmount"],
                     "ValidityDate":rec["ValidityDate"],
                     "Description":rec["Description"],                    
-                    "full_record": rec,
+                    # "full_record": rec,
                 }
             )
     if  remove:
@@ -143,6 +143,15 @@ async def check_duplicate_file(
             },
         )
     else:
+
+        # Convert duplicates to dataframe
+        duplicates_csv = pd.DataFrame(duplicates)
+
+        # Save to temporary file
+        temp_file = tempfile.NamedTemporaryFile(mode="w+", suffix=".csv", delete=False)
+        duplicates_csv.to_csv(temp_file.name, index=False)
+        temp_file.close()
+
         return templates.TemplateResponse(
             "check_duplicate.html",
             {
@@ -153,8 +162,20 @@ async def check_duplicate_file(
                 if duplicates
                 else "No duplicate records found",
                 "total_records": len(records),
+                "download_link": f"/csv/duplicate/download/{os.path.basename(temp_file.name)}" if duplicates else None,
             },
         )
+    
+
+@router.get("/duplicate/download/{filename}", response_class=FileResponse)
+async def download_file(filename: str):
+    try:
+        file_path = os.path.join(tempfile.gettempdir(), filename)
+    except Exception as e:
+        return JSONResponse(status_code=500,
+            content={"error": f"An error occurred while processing your file: {str(e)}"},)
+    return FileResponse(file_path, filename=filename, media_type="text/csv")
+
 
 
 @router.post("/remove_duplicates")

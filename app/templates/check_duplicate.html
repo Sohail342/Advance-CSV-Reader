@@ -148,9 +148,10 @@
                             <button class="btn btn-outline-primary" onclick="downloadOriginal()">
                                 <i class="fas fa-file-download me-2"></i>Download Original File
                             </button>
-                            <button class="btn btn-outline-secondary" onclick="downloadDuplicatesList()">
-                                <i class="fas fa-list me-2"></i>Download Duplicates Report
-                            </button>
+                            {% if download_link %}
+                                <a href="{{ download_link }}" class="btn btn-primary">Download Duplicates CSV</a>
+                            {% endif %}
+
                         </div>
                     </div>
                 </div>
@@ -192,6 +193,19 @@
                                 <th>Row #</th>
                                 <th>SubGLCode</th>
                                 <th>CostCenterID</th>
+                                <th>SubHeadID</th>
+                                <th>SubHead</th>
+                                <th>Region</th>
+                                <th>BCode</th>
+                                <th>BName</th>
+                                <th>BudgetID</th>
+                                <th>Head</th>
+                                <th>HeadID</th>
+                                <th>CostCenter</th>
+                                <th>BudgetAmount</th>
+                                <th>ValidityDate</th>
+                                <th>Description</th>
+
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -203,7 +217,7 @@
                                 <td><code>{{ duplicate.CostCenterID }}</code></td>
                                 <td><code>{{ duplicate.SubHeadID }}</code></td>
                                 <td><code>{{ duplicate.SubHead }}</code></td>
-                                <td><code>{{ duplicate.Region }}</code></td>
+                                <td><code>{{ duplicate.Region }}</code></td></th>
                                 <td><code>{{ duplicate.BCode }}</code></td>
                                 <td><code>{{ duplicate.BName }}</code></td>
                                 <td><code>{{ duplicate.BudgetID }}</code></td>
@@ -505,42 +519,5 @@ function downloadOriginal() {
     }
 }
 
-function downloadDuplicatesList() {
-    // Generate CSV report of duplicates
-    const table = document.querySelector('table');
-    if (!table) {
-        alert('No duplicate data found to download.');
-        return;
-    }
-    
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Row Number,SubGLCode,CostCenterID\n";
-    
-    const rows = table.querySelectorAll('tbody tr');
-    if (rows.length === 0) {
-        alert('No duplicate records found in the table.');
-        return;
-    }
-    
-    rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        if (cells.length >= 3) {
-            const rowData = [
-                cells[0].textContent.trim(),
-                cells[1].textContent.trim(),
-                cells[2].textContent.trim()
-            ];
-            csvContent += rowData.join(",") + "\n";
-        }
-    });
-    
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "duplicates_report.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
 </script>
 {% endblock %}
