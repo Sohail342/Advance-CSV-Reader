@@ -1,5 +1,5 @@
 import logging
-from sqlalchemy import select
+from sqlalchemy import select, text
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import HTMLResponse
@@ -57,6 +57,12 @@ class RecordRequest(BaseModel):
             }
         }
 
+class DeleteRecordResponse(BaseModel):
+    """Schema for record response"""
+
+    success: bool
+    message: str
+
 
 class RecordResponse(BaseModel):
     """Schema for record response"""
@@ -64,6 +70,20 @@ class RecordResponse(BaseModel):
     success: bool
     message: str
     record_id: Optional[int] = None
+
+
+@router.delete("/api/records/", response_model=DeleteRecordResponse)
+async def delete_all_records(db: AsyncSession = Depends(get_db)):
+    """Delete all records from the CSVHeaders table"""
+    try:
+        await db.execute(text("DELETE FROM csv_headers"))
+        await db.commit()
+        return RecordResponse(success=True, message="All records deleted successfully")
+    except Exception as e:
+        logger.error(f"Error deleting all records: {str(e)}")
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.get("/insert-update", response_class=HTMLResponse)
