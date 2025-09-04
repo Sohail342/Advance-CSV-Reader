@@ -424,6 +424,7 @@ async def process_batch(
 
     await db.commit()
 
+    print(f"DF {matched}")
     return (
         pd.DataFrame(matched) if matched else None,
         pd.DataFrame([object_as_dict(o) for o in new_objs]) if new_objs else None,
@@ -475,6 +476,7 @@ async def process_csv_file(
         if df_new is not None:
             all_new.append(df_new)
 
+    print(f"Matched {all_matched}")
     def concat(dfs):
         return pd.concat(dfs, ignore_index=True) if dfs else None
 
@@ -505,7 +507,6 @@ async def get_upload_form(request: Request):
 @router.post("/upload")
 async def upload_data_file(
     request: Request,
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
