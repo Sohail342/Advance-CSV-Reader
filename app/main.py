@@ -29,7 +29,6 @@ templates_path = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(templates_path))
 
 
-
 # Include routers
 app.include_router(csv_routes.router)
 app.include_router(insert_update_routes.router)
@@ -52,4 +51,4 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=7000, reload=True)

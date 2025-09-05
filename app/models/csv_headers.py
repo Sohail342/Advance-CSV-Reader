@@ -19,17 +19,15 @@ class CSVHeaders(Base):
     BName = Column(String, nullable=True)
     BudgetID = Column(String, nullable=True)
     Head = Column(String, nullable=True)
-    HeadID	= Column(String, nullable=True)
+    HeadID = Column(String, nullable=True)
     CostCenter = Column(String, nullable=True)
     BudgetAmount = Column(String, nullable=True)
     ValidityDate = Column(String, nullable=True)
     Description = Column(String, nullable=True)
 
-
     # Create indexes for performance optimization
     __table_args__ = (
         Index("idx_CostCenterID", CostCenterID),
-
         # Composite index for common query patterns
         Index("idx_CostCenterID_SubGLCode", CostCenterID, SubGLCode),
     )

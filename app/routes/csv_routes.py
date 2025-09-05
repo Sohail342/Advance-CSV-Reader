@@ -26,6 +26,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.schemas import CSVRecordOut
 from sqlalchemy.inspection import inspect
 
+from app.utils.new_records import get_new_records
 from app.models import CSVHeaders
 from app.utils.database import get_db
 from app.utils.excel_processor import (
@@ -35,18 +36,39 @@ from app.utils.excel_processor import (
     EXCEL_EXTENSIONS,
 )
 
-# get column keys dynamically
-def object_as_dict(obj):
-    return {
-        c.key: getattr(obj, c.key)
-        for c in inspect(obj).mapper.column_attrs
-    }
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/csv", tags=["CSV Processing"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
-REQUIRED_HEADERS = ["SubGLCode", "CostCenterID", "SubHeadID", "SubHead", "Region", "BCode", "BName", "BudgetID", "Head", "HeadID", "CostCenter", "BudgetAmount", "ValidityDate", "Description"]
+
+columns_for_matched_records = [
+    "SubGLCode", "CostCenterID", "SubHeadID", "SubHead", "Region", "BCode", "BName",
+    "Head", "HeadID", "CostCenter", 
+    "ValidityDate", "Description", "BudgetID", "BudgetAmount", "NewBudget", "NewOldAmountComparison"
+]
+
+columns_for_matched_records_ready_to_upload = [
+    "BudgetID", "HeadID", "Head", "SubHeadID", "SubHead", "CostCenterID", "CostCenter",
+    "BudgetAmount", "ValidityDate", "Description", "NewBudget", "NewOldAmountComparison"
+]
+
+REQUIRED_HEADERS = [
+    "SubGLCode",
+    "CostCenterID",
+    "SubHeadID",
+    "SubHead",
+    "Region",
+    "BCode",
+    "BName",
+    "BudgetID",
+    "Head",
+    "HeadID",
+    "CostCenter",
+    "BudgetAmount",
+    "ValidityDate",
+    "Description",
+    "RemainingBudget",
+]
 
 csv_store: Dict[str, Dict[str, Optional[str]]] = {}
 
@@ -105,21 +127,20 @@ async def check_duplicate_file(
                     "SubGLCode": rec["SubGLCode"],
                     "CostCenterID": rec["CostCenterID"],
                     "SubHeadID": rec["SubHeadID"],
-                    "SubHead":rec["SubHead"],
-                    "Region":rec["Region"],
-                    "BCode":rec["BCode"],
-                    "BName":rec["BName"],
-                    "BudgetID":rec["BudgetID"],
-                    "Head":rec["Head"],
-                    "HeadID":rec["HeadID"],
-                    "CostCenter":rec["CostCenter"],
-                    "BudgetAmount":rec["BudgetAmount"],
-                    "ValidityDate":rec["ValidityDate"],
-                    "Description":rec["Description"],                    
-                    # "full_record": rec,
+                    "SubHead": rec["SubHead"],
+                    "Region": rec["Region"],
+                    "BCode": rec["BCode"],
+                    "BName": rec["BName"],
+                    "BudgetID": rec["BudgetID"],
+                    "Head": rec["Head"],
+                    "HeadID": rec["HeadID"],
+                    "CostCenter": rec["CostCenter"],
+                    "BudgetAmount": rec["BudgetAmount"],
+                    "ValidityDate": rec["ValidityDate"],
+                    "Description": rec["Description"],
                 }
             )
-    if  remove:
+    if remove:
         # Generate cleaned file for download
         cleaned_df = pd.DataFrame(unique_records)
 
@@ -143,7 +164,6 @@ async def check_duplicate_file(
             },
         )
     else:
-
         # Convert duplicates to dataframe
         duplicates_csv = pd.DataFrame(duplicates)
 
@@ -162,20 +182,25 @@ async def check_duplicate_file(
                 if duplicates
                 else "No duplicate records found",
                 "total_records": len(records),
-                "download_link": f"/csv/duplicate/download/{os.path.basename(temp_file.name)}" if duplicates else None,
+                "download_link": f"/csv/duplicate/download/{os.path.basename(temp_file.name)}"
+                if duplicates
+                else None,
             },
         )
-    
+
 
 @router.get("/duplicate/download/{filename}", response_class=FileResponse)
 async def download_file(filename: str):
     try:
         file_path = os.path.join(tempfile.gettempdir(), filename)
     except Exception as e:
-        return JSONResponse(status_code=500,
-            content={"error": f"An error occurred while processing your file: {str(e)}"},)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": f"An error occurred while processing your file: {str(e)}"
+            },
+        )
     return FileResponse(file_path, filename=filename, media_type="text/csv")
-
 
 
 @router.post("/remove_duplicates")
@@ -192,7 +217,9 @@ async def remove_duplicate_records_file(
         if ext not in EXCEL_EXTENSIONS and ext != ".csv":
             return JSONResponse(
                 status_code=400,
-                content={"error": "Invalid file format. Please upload CSV or Excel files only."},
+                content={
+                    "error": "Invalid file format. Please upload CSV or Excel files only."
+                },
             )
 
         # Process file
@@ -211,7 +238,9 @@ async def remove_duplicate_records_file(
         if not records:
             return JSONResponse(
                 status_code=400,
-                content={"error": "No valid records found in the file. Please check your file format and required headers."},
+                content={
+                    "error": "No valid records found in the file. Please check your file format and required headers."
+                },
             )
 
         # Deduplicate
@@ -240,14 +269,17 @@ async def remove_duplicate_records_file(
             path=cleaned_path,
             filename=cleaned_filename,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            if ext in EXCEL_EXTENSIONS else "text/csv"
+            if ext in EXCEL_EXTENSIONS
+            else "text/csv",
         )
 
     except Exception as e:
         logger.error(f"Error removing duplicates: {str(e)}")
         return JSONResponse(
             status_code=500,
-            content={"error": f"An error occurred while processing your file: {str(e)}"},
+            content={
+                "error": f"An error occurred while processing your file: {str(e)}"
+            },
         )
 
 
@@ -346,17 +378,14 @@ async def process_batch(
         if rec.get("SubGLCode") and rec.get("CostCenterID")
     ]
 
-    
     stmt = select(CSVHeaders).where(
         tuple_(CSVHeaders.SubGLCode, CSVHeaders.CostCenterID).in_(lookup_pairs)
     )
     result = await db.execute(stmt)
     existing_records = result.scalars().all()
-
+    
     # Build a lookup map
-    existing_map = {
-        (e.SubGLCode, e.CostCenterID): e for e in existing_records
-    }
+    existing_map = {(str(e.SubGLCode), str(e.CostCenterID)): e for e in existing_records}
 
     matched = []
     new_objs = []
@@ -366,69 +395,15 @@ async def process_batch(
         if key in existing_map:
             stats["matched_records"] += 1
             matched.append(rec)
-
-            e = existing_map[key]
-            # Update only if something changed
-            if (
-                e.SubHead != rec["SubGLCode"]
-                or e.Region != rec["Region"]
-                or e.BName != rec["BName"]
-                or e.BCode != rec["BCode"]
-                or e.CostCenterID != rec["CostCenterID"]
-                or e.CostCenter != rec.get("CostCenter")
-                or e.BudgetAmount != rec.get("BudgetAmount")
-                or e.ValidityDate != rec.get("ValidityDate")
-                or e.Description != rec.get("Description")
-                or e.SubHeadID != rec.get("SubHeadID")
-                or e.BudgetID != rec.get("BudgetID")
-                or e.Head != rec.get("Head")
-                or e.HeadID != rec.get("HeadID")
-            ):
-                e.SubHead = rec["SubHead"]
-                e.Region = rec["Region"]
-                e.BName = rec["BName"]
-                e.BCode = rec["BCode"]
-                e.CostCenterID = rec["CostCenterID"]
-                e.CostCenter = rec.get("CostCenter")
-                e.BudgetAmount = rec.get("BudgetAmount")
-                e.ValidityDate = rec.get("ValidityDate")
-                e.Description = rec.get("Description")
-                e.SubHeadID = rec.get("SubHeadID")
-                e.BudgetID = rec.get("BudgetID")
-                e.Head = rec.get("Head")
-                e.HeadID = rec.get("HeadID")
         else:
             stats["new_records"] += 1
+            new_objs.append(rec)
 
-            # Insert new record only if sub_gl_code and branch_code are present
-            new_objs.append(CSVHeaders(
-                SubGLCode=rec["SubGLCode"],
-                SubHead=rec["SubHead"],
-                Region=rec["Region"],
-                BCode=rec["BCode"],
-                BName=rec["BName"],
-                CostCenterID=rec.get("CostCenterID"),
-                SubHeadID=rec.get("SubHeadID"),
-                BudgetID=rec.get("BudgetID"),
-                Head=rec.get("Head"),
-                HeadID=rec.get("HeadID"),
-                CostCenter=rec.get("CostCenter"),
-                BudgetAmount=rec.get("BudgetAmount"),
-                ValidityDate=rec.get("ValidityDate"),
-                Description=rec.get("Description"),
-            ))
-
-    if new_objs:
-            for obj in new_objs:
-                db.add(obj)
-
-    await db.commit()
-
-    print(f"DF {matched}")
     return (
         pd.DataFrame(matched) if matched else None,
-        pd.DataFrame([object_as_dict(o) for o in new_objs]) if new_objs else None,
+        pd.DataFrame(new_objs) if new_objs else None,
     )
+
 
 
 async def process_csv_file(
@@ -446,9 +421,9 @@ async def process_csv_file(
     fname = file.filename.lower()
     ext = os.path.splitext(fname)[1]
 
+    # --- Read file into records ---
     if ext in EXCEL_EXTENSIONS:
         df = await read_excel_file(file)
-        validate_excel_headers(df, REQUIRED_HEADERS)
         records = excel_to_records(df, REQUIRED_HEADERS)
     else:
         content = await file.read()
@@ -466,26 +441,70 @@ async def process_csv_file(
 
     all_matched = []
     all_new = []
+    all_matched_two = []
+    df_matched = None
+    df_db_format_two = None
+    df_new = None
 
     batch_size = 100
     for i in range(0, len(records), batch_size):
         batch = records[i : i + batch_size]
         df_matched, df_new = await process_batch(batch, db, stats)
-        if df_matched is not None:
-            all_matched.append(df_matched)
+
+    if df_matched is not None and not df_matched.empty:
+        """Create Dataframe for matched records (two formats)"""
+        for _, row in df_matched.iterrows():
+            records_from_db = await get_new_records(
+                columns_missed=True,
+                SubGLCode=str(row["SubGLCode"]),
+                CostCenterID=str(row["CostCenterID"]),
+                db=db,
+            )
+            if records_from_db:
+                for rec in records_from_db:
+                    # merge file's Budget into DB record
+                    rec["NewBudget"] = row["RemainingBudget"]
+
+                    # compare budget from file and db
+                    if str(row["RemainingBudget"]) == str(rec["BudgetAmount"]):
+                        rec["NewOldAmountComparison"] = "True"
+                    else:
+                        rec["NewOldAmountComparison"] = "False"
+
+                df_db = pd.DataFrame(records_from_db)
+                for col in columns_for_matched_records:
+                    if col not in df_db:
+                        df_db[col] = ""
+
+                df_db = df_db[columns_for_matched_records]
+                all_matched.append(df_db)
+
+                # format two: ready to upload format for matched records
+                if all(col in df_db.columns for col in columns_for_matched_records_ready_to_upload):
+                    df_db_format_two = df_db[columns_for_matched_records_ready_to_upload]
+                    all_matched_two.append(df_db_format_two)
+        
+        # New records that are not matched
         if df_new is not None:
             all_new.append(df_new)
 
-    print(f"Matched {all_matched}")
+    # --- Concatenate ---
     def concat(dfs):
         return pd.concat(dfs, ignore_index=True) if dfs else None
 
     matched_df = concat(all_matched)
+    matched_two_df = concat(all_matched_two)
     new_df = concat(all_new)
+
 
     matched_path = (
         save_df_to_temp_file(matched_df)
         if matched_df is not None and not matched_df.empty
+        else None
+    )
+    matched_two_path = (
+        save_df_to_temp_file(matched_two_df)
+        if matched_two_df is not None and not matched_two_df.empty
         else None
     )
     new_path = (
@@ -494,7 +513,7 @@ async def process_csv_file(
         else None
     )
 
-    return stats, matched_path, new_path
+    return stats, matched_path, matched_two_path, new_path
 
 
 @router.get("/upload", response_class=HTMLResponse)
@@ -510,10 +529,10 @@ async def upload_data_file(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
-    stats, matched_path, new_path = await process_csv_file(file, db)
+    stats, matched_path, matched_two_path, new_path = await process_csv_file(file, db)
 
     csv_id = str(uuid4())
-    csv_store[csv_id] = {"matched": matched_path, "new": new_path}
+    csv_store[csv_id] = {"matched": matched_path, "matched_ready_to_upload": matched_two_path, "new": new_path}
 
     return templates.TemplateResponse(
         "result.html",
@@ -528,7 +547,7 @@ async def upload_data_file(
 
 
 @router.post("/upload-comparison")
-async def upload_comparison_data(
+async def upload_or_insert_data(
     request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
@@ -555,7 +574,7 @@ async def upload_comparison_data(
                         "inserted_records": 0,
                         "updated_records": 0,
                         "error_records": 0,
-                        "errors": ["Invalid file format"]
+                        "errors": ["Invalid file format"],
                     },
                     "csv_id": None,
                     "operation_type": "comparison",
@@ -587,7 +606,7 @@ async def upload_comparison_data(
                         "inserted_records": 0,
                         "updated_records": 0,
                         "error_records": 0,
-                        "errors": ["No valid records found"]
+                        "errors": ["No valid records found"],
                     },
                     "csv_id": None,
                     "operation_type": "comparison",
@@ -621,23 +640,18 @@ async def upload_comparison_data(
 
             # Query existing records
             stmt = select(CSVHeaders).where(
-                tuple_(CSVHeaders.SubGLCode, CSVHeaders.CostCenterID).in_(
-                    lookup_pairs
-                )
+                tuple_(CSVHeaders.SubGLCode, CSVHeaders.CostCenterID).in_(lookup_pairs)
             )
             result = await db.execute(stmt)
             existing_records = result.scalars().all()
 
             # Create lookup map
-            existing_map = {
-                (rec.SubGLCode, rec.CostCenterID): rec for rec in existing_records
-            }
-
+            existing_map = {(str(rec.SubGLCode), str(rec.CostCenterID)): rec for rec in existing_records}
+            
             # Process each record in batch
             for record in batch:
                 try:
                     key = (record["SubGLCode"], record["CostCenterID"])
-
                     if key in existing_map:
                         # Update existing record
                         existing_record = existing_map[key]
@@ -726,7 +740,7 @@ async def upload_comparison_data(
                     "inserted_records": 0,
                     "updated_records": 0,
                     "error_records": 0,
-                    "errors": [str(e)]
+                    "errors": [str(e)],
                 },
                 "csv_id": None,
                 "operation_type": "comparison",

@@ -8,6 +8,7 @@ load_dotenv()
 
 # Use an async database URL (example uses PostgreSQL)
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./csv_data.db")
+print(DATABASE_URL)
 
 # Create async engine
 engine = create_async_engine(
@@ -19,12 +20,13 @@ engine = create_async_engine(
 
 # Create session factory
 AsyncSessionLocal = sessionmaker(
-    bind=engine, 
-    class_=AsyncSession, 
+    bind=engine,
+    class_=AsyncSession,
     expire_on_commit=False,
 )
 
 Base = declarative_base()
+
 
 # Async DB dependency for FastAPI
 async def get_db():

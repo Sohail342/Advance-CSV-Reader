@@ -57,6 +57,7 @@ class RecordRequest(BaseModel):
             }
         }
 
+
 class DeleteRecordResponse(BaseModel):
     """Schema for record response"""
 
@@ -83,7 +84,6 @@ async def delete_all_records(db: AsyncSession = Depends(get_db)):
         logger.error(f"Error deleting all records: {str(e)}")
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @router.get("/insert-update", response_class=HTMLResponse)
@@ -117,13 +117,13 @@ async def check_existing_record(
             return {
                 "exists": True,
                 "record": {
-                        "id": record.id,
-                        "sub_gl_code": record.SubGLCode,
-                        "sub_head": record.SubHead,
-                        "region": record.Region,
-                        "branch_code": record.BCode,
-                        "branch_name": record.BName,
-                    },
+                    "id": record.id,
+                    "sub_gl_code": record.SubGLCode,
+                    "sub_head": record.SubHead,
+                    "region": record.Region,
+                    "branch_code": record.BCode,
+                    "branch_name": record.BName,
+                },
             }
         else:
             return {"exists": False}
@@ -134,13 +134,30 @@ async def check_existing_record(
 
 
 @router.post("/api/insert-update-record", response_model=RecordResponse)
-async def insert_update_record(request: RecordRequest, db: AsyncSession = Depends(get_db)):
+async def insert_update_record(
+    request: RecordRequest, db: AsyncSession = Depends(get_db)
+):
     """Insert a new record or update an existing one"""
     try:
         data = request.model_dump()
 
         # Clean data
-        for key in ["CostCenterID", "SubHeadID", "SubGLCode", "SubHead", "Region", "BCode", "BName", "BudgetID", "Head", "HeadID", "CostCenter", "BudgetAmount", "ValidityDate", "Description"]:
+        for key in [
+            "CostCenterID",
+            "SubHeadID",
+            "SubGLCode",
+            "SubHead",
+            "Region",
+            "BCode",
+            "BName",
+            "BudgetID",
+            "Head",
+            "HeadID",
+            "CostCenter",
+            "BudgetAmount",
+            "ValidityDate",
+            "Description",
+        ]:
             if key in data and data[key]:
                 data[key] = data[key].strip()
 

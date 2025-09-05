@@ -61,7 +61,7 @@ def excel_to_records(
     Convert Excel DataFrame to a list of records
     """
     # Convert DataFrame columns to lowercase for case-insensitive comparison
-    df.columns = [col.strip().lower() for col in df.columns]
+    df.columns = [col.strip() for col in df.columns]
 
     # Convert DataFrame to list of dictionaries
     records = df.to_dict(orient="records")
