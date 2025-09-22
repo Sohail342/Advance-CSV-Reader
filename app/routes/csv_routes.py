@@ -623,7 +623,7 @@ async def upload_or_insert_data(
         # Process file
         if ext in EXCEL_EXTENSIONS:
             df = await read_excel_file(file)
-            validate_excel_headers(df, REQUIRED_HEADERS)
+            # validate_excel_headers(df, REQUIRED_HEADERS)
             records = excel_to_records(df, REQUIRED_HEADERS)
         else:
             content = await file.read()
@@ -684,6 +684,8 @@ async def upload_or_insert_data(
             result = await db.execute(stmt)
             existing_records = result.scalars().all()
 
+            print(f"Existing Records {existing_records}")
+
             # Create lookup map
             existing_map = {(str(rec.SubGLCode), str(rec.CostCenterID)): rec for rec in existing_records}
             
@@ -727,13 +729,15 @@ async def upload_or_insert_data(
                             ValidityDate=record["ValidityDate"],
                             Description=record["Description"],
                         )
-                        db.add(new_record)
+                        
                         inserted_records.append(record)
                         stats["inserted_records"] += 1
 
                 except Exception as e:
                     stats["error_records"] += 1
                     stats["errors"].append(f"Error processing record: {str(e)}")
+
+        db.add(new_record)
 
         await db.commit()
 
