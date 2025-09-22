@@ -230,7 +230,7 @@ async def remove_duplicate_records_file(
         # Process file
         if ext in EXCEL_EXTENSIONS:
             df = await read_excel_file(file)
-            validate_excel_headers(df, REQUIRED_HEADERS)
+            # validate_excel_headers(df, REQUIRED_HEADERS)
             records = excel_to_records(df, REQUIRED_HEADERS)
         else:
             content = await file.read()
