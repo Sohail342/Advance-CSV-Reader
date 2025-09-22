@@ -47,6 +47,12 @@ columns_for_matched_records = [
     "ValidityDate", "Description", "BudgetID", "BudgetAmount", "NewBudget", "NewOldAmountComparison"
 ]
 
+columns_for_unmatched_records = [
+    "SubGLCode", "CostCenterID", "SubHeadID", "SubHead", "Region", "BCode", "BName",
+    "Head", "HeadID", "CostCenter", 
+    "ValidityDate", "Description", "BudgetID", "BudgetAmount",
+]
+
 columns_for_matched_records_ready_to_upload = [
     "BudgetID", "HeadID", "Head", "SubHeadID", "SubHead", "CostCenterID", "CostCenter",
     "BudgetAmount", "ValidityDate", "Description", "NewBudget", "NewOldAmountComparison"
@@ -404,11 +410,18 @@ async def process_batch(
         pd.DataFrame(new_objs) if new_objs else None,
     )
 
-
+@router.get("/test/{code}")
+async def text(code: str, db: AsyncSession = Depends(get_db)):
+    records_from_db = await get_new_records(
+                    columns_missed=True,
+                    SubGLCode=code,
+                    db=db,
+                )
+    return JSONResponse(records_from_db)
 
 async def process_csv_file(
     file: UploadFile, db: AsyncSession
-) -> Tuple[Dict[str, Any], Optional[str], Optional[str]]:
+) -> Tuple[Dict[str, Any], Optional[str], Optional[str], Optional[str], Optional[str]]:
     stats = {
         "total_rows": 0,
         "matched_records": 0,
@@ -439,22 +452,24 @@ async def process_csv_file(
 
     stats["total_rows"] = stats["total_rows"] or len(records)
 
+    # --- Holders ---
     all_matched = []
     all_new = []
     all_matched_two = []
+    all_out_of_scope = []
+
     df_matched = None
-    df_db_format_two = None
     df_new = None
 
     batch_size = 100
     for i in range(0, len(records), batch_size):
-        batch = records[i : i + batch_size]
+        batch = records[i: i + batch_size]
         df_matched, df_new = await process_batch(batch, db, stats)
 
+    # --- Process Matched ---
     if df_matched is not None and not df_matched.empty:
-        """Create Dataframe for matched records (two formats)"""
         for _, row in df_matched.iterrows():
-            records_from_db = await get_new_records(
+            records_from_db, out_of_scop = await get_new_records(
                 columns_missed=True,
                 SubGLCode=str(row["SubGLCode"]),
                 CostCenterID=str(row["CostCenterID"]),
@@ -462,16 +477,14 @@ async def process_csv_file(
             )
             if records_from_db:
                 for rec in records_from_db:
-                    # merge file's Budget into DB record
                     rec["NewBudget"] = row["RemainingBudget"]
-
-                    # compare budget from file and db
-                    if str(row["RemainingBudget"]) == str(rec["BudgetAmount"]):
-                        rec["NewOldAmountComparison"] = "True"
-                    else:
-                        rec["NewOldAmountComparison"] = "False"
+                    rec["NewOldAmountComparison"] = (
+                        "True" if str(row["RemainingBudget"]) == str(rec["BudgetAmount"]) else "False"
+                    )
 
                 df_db = pd.DataFrame(records_from_db)
+
+                # Fill missing columns
                 for col in columns_for_matched_records:
                     if col not in df_db:
                         df_db[col] = ""
@@ -479,24 +492,44 @@ async def process_csv_file(
                 df_db = df_db[columns_for_matched_records]
                 all_matched.append(df_db)
 
-                # format two: ready to upload format for matched records
+                # Format two
                 if all(col in df_db.columns for col in columns_for_matched_records_ready_to_upload):
                     df_db_format_two = df_db[columns_for_matched_records_ready_to_upload]
                     all_matched_two.append(df_db_format_two)
-        
-        # New records that are not matched
-        if df_new is not None:
-            all_new.append(df_new)
 
-    # --- Concatenate ---
+    # --- Process New ---
+    if df_new is not None and not df_new.empty:
+        for _, row in df_new.iterrows():
+            records_from_db, out_of_scope = await get_new_records(
+                columns_missed=True,
+                SubGLCode=str(row["SubGLCode"]),
+                db=db,
+            )
+
+            if out_of_scope:
+                all_out_of_scope.extend(out_of_scope)
+
+            if records_from_db:
+
+                df_db = pd.DataFrame(records_from_db)
+
+                for col in columns_for_unmatched_records:
+                    if col not in df_db:
+                        df_db[col] = ""
+
+                df_db = df_db[columns_for_unmatched_records]
+                all_new.append(df_db)
+
+    # --- Concatenate Helper ---
     def concat(dfs):
         return pd.concat(dfs, ignore_index=True) if dfs else None
 
     matched_df = concat(all_matched)
     matched_two_df = concat(all_matched_two)
     new_df = concat(all_new)
+    out_of_scope_df = pd.DataFrame(all_out_of_scope, columns=["SubGLCode"])
 
-
+    # --- Save to temp files ---
     matched_path = (
         save_df_to_temp_file(matched_df)
         if matched_df is not None and not matched_df.empty
@@ -512,8 +545,14 @@ async def process_csv_file(
         if new_df is not None and not new_df.empty
         else None
     )
+    out_of_scope_path = (
+        save_df_to_temp_file(out_of_scope_df)
+        if out_of_scope_df is not None and not out_of_scope_df.empty
+        else None
+    )
 
-    return stats, matched_path, matched_two_path, new_path
+    return stats, matched_path, matched_two_path, new_path, out_of_scope_path
+
 
 
 @router.get("/upload", response_class=HTMLResponse)
@@ -529,10 +568,10 @@ async def upload_data_file(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
-    stats, matched_path, matched_two_path, new_path = await process_csv_file(file, db)
+    stats, matched_path, matched_two_path, new_path, out_of_scope_df = await process_csv_file(file, db)
 
     csv_id = str(uuid4())
-    csv_store[csv_id] = {"matched": matched_path, "matched_ready_to_upload": matched_two_path, "new": new_path}
+    csv_store[csv_id] = {"matched": matched_path, "matched_ready_to_upload": matched_two_path, "out_of_scop_glcodes_path":out_of_scope_df, "new": new_path}
 
     return templates.TemplateResponse(
         "result.html",
