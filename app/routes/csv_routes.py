@@ -97,7 +97,6 @@ async def check_duplicate_file(
 
     if ext in EXCEL_EXTENSIONS:
         df = await read_excel_file(file)
-        # validate_excel_headers(df, REQUIRED_HEADERS)
         records = excel_to_records(df, REQUIRED_HEADERS)
     else:
         content = await file.read()
@@ -116,6 +115,7 @@ async def check_duplicate_file(
                 "error": "No valid records found in the file",
             },
         )
+    
 
     duplicates = []
     unique_set = set()
@@ -230,7 +230,6 @@ async def remove_duplicate_records_file(
         # Process file
         if ext in EXCEL_EXTENSIONS:
             df = await read_excel_file(file)
-            # validate_excel_headers(df, REQUIRED_HEADERS)
             records = excel_to_records(df, REQUIRED_HEADERS)
         else:
             content = await file.read()
@@ -264,18 +263,15 @@ async def remove_duplicate_records_file(
         cleaned_filename = f"cleaned_{file.filename}"
         cleaned_path = os.path.join(temp_dir, cleaned_filename)
 
-        if ext in EXCEL_EXTENSIONS:
-            cleaned_df.to_excel(cleaned_path, index=False)
-        else:
-            cleaned_df.to_csv(cleaned_path, index=False)
+       
+        cleaned_df.to_csv(cleaned_path, index=False)
+       
 
         # Return cleaned file directly
         return FileResponse(
             path=cleaned_path,
             filename=cleaned_filename,
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            if ext in EXCEL_EXTENSIONS
-            else "text/csv",
+            media_type="text/csv"
         )
 
     except Exception as e:
@@ -683,7 +679,6 @@ async def upload_or_insert_data(
             result = await db.execute(stmt)
             existing_records = result.scalars().all()
 
-            print(f"Existing Records {existing_records}")
 
             # Create lookup map
             existing_map = {(str(rec.SubGLCode), str(rec.CostCenterID)): rec for rec in existing_records}

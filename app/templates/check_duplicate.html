@@ -90,13 +90,7 @@
                     </div>
                     <div class="col-md-4">
                         <h3 class="text-info">
-                            {% set max_row = 0 %}
-                            {% for dup in duplicates %}
-                                {% if dup.row > max_row %}
-                                    {% set max_row = dup.row %}
-                                {% endif %}
-                            {% endfor %}
-                            {{ max_row + 1 if max_row > 0 else 0 }}
+                            {{total_records}}
                         </h3>
                         <p class="text-muted mb-0">Total Rows Analyzed</p>
                     </div>

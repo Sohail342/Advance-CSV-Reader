@@ -6,16 +6,6 @@ from pathlib import Path
 
 from app.routes import csv_routes, insert_update_routes
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("app.log"),
-    ],
-)
-logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
@@ -47,8 +37,3 @@ async def root(request: Request):
 async def health_check():
     return {"status": "healthy"}
 
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run("app.main:app", host="0.0.0.0", port=7000, reload=True)
