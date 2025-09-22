@@ -1,106 +1,555 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="hero-section p-5 mb-4">
-    <div class="row align-items-center">
-        <div class="col-lg-8">
-            <h1 class="display-4 fw-bold mb-3">DataSync Pro</h1>
-            <p class="lead mb-4">Modern CSV/Excel data processing with intelligent duplicate detection and seamless database synchronization.</p>
-            <div class="d-flex gap-3 flex-wrap">
-                <a href="/csv/upload" class="btn btn-light btn-lg px-4">
-                    <i class="fas fa-upload me-2"></i>Start Processing
-                </a>
-                <a href="/csv/check-duplicate" class="btn btn-outline-light btn-lg px-4">
-                    <i class="fas fa-search me-2"></i>Check Duplicates
-                </a>
+<div class="container-fluid">
+    <!-- Progress Bar -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="progress-container">
+                <div class="progress">
+                    <div class="progress-bar" id="progressBar" role="progressbar" style="width: 33.33%"></div>
+                </div>
+                <div class="step-indicators d-flex justify-content-between mt-2">
+                    <div class="step active" id="step1Indicator">
+                        <span class="step-number">1</span>
+                        <span class="step-label">Check Duplicates</span>
+                    </div>
+                    <div class="step" id="step2Indicator">
+                        <span class="step-number">2</span>
+                        <span class="step-label">Insert/Update</span>
+                    </div>
+                    <div class="step" id="step3Indicator">
+                        <span class="step-number">3</span>
+                        <span class="step-label">Database Match</span>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="col-lg-4 text-center">
-            <i class="fas fa-database fa-5x opacity-75"></i>
+    </div>
+
+    <!-- Step 1: Check for Duplicates -->
+    <div id="step1" class="step-content">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">
+                            <i class="fas fa-file-upload me-2"></i>Select File for Duplicate Check
+                        </h4>
+                    </div>
+                    <div class="card-body p-4">
+                        <form action="/csv/check_duplicate" method="post" enctype="multipart/form-data" id="duplicateForm">
+                            <div class="upload-zone p-4 text-center mb-4" id="uploadZone">
+                                <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                                <h5 class="mb-2">Drop your file here or click to browse</h5>
+                                <p class="text-muted mb-3">Supports CSV, XLS, and XLSX files</p>
+                                <input type="file" class="d-none" id="file" name="file" accept=".csv,.xlsx,.xls" required>
+                                <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('file').click()">
+                                    <i class="fas fa-folder-open me-2"></i>Choose File
+                                </button>
+                            </div>
+
+                            <div id="fileInfo" class="alert alert-info d-none">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-file me-2"></i>
+                                    <div>
+                                        <strong id="fileName">No file selected</strong>
+                                        <br>
+                                        <small class="text-muted" id="fileSize"></small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-info-circle me-2"></i>Duplicate Detection Criteria</h6>
+                                <p class="mb-0">Records are considered duplicates when both <code>SubGLCode</code> and <code>CostCenterID</code> combinations appear more than once in your file.</p>
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary" id="checkBtn" disabled>
+                                    <i class="fas fa-search me-2"></i>Check for Duplicates
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="text-center mt-4">
+                    <button class="btn btn-success" id="step1NextBtn">
+                        <i class="fas fa-arrow-right me-2"></i>Next Step
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Insert/Update Records -->
+    <div id="step2" class="step-content d-none">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h4 class="mb-0">
+                            <i class="fas fa-exchange-alt me-2"></i>Insert/Update Records
+                        </h4>
+                    </div>
+                    <div class="card-body p-4">
+                        <form action="/csv/upload-comparison" method="post" enctype="multipart/form-data" id="uploadComparisonForm">
+                            <div class="upload-zone p-4 text-center mb-4" id="uploadComparisonZone">
+                                <i class="fas fa-database fa-3x text-muted mb-3"></i>
+                                <h5 class="mb-2">Upload comparison data</h5>
+                                <p class="text-muted mb-3">Insert/update records</p>
+                                <input type="file" class="d-none" id="comparisonFile" name="file" accept=".csv,.xlsx,.xls" required>
+                                <button type="button" class="btn btn-outline-success" onclick="document.getElementById('comparisonFile').click()">
+                                    <i class="fas fa-plus-circle me-2"></i>Choose File
+                                </button>
+                            </div>
+                            
+                            <div id="comparisonFileInfo" class="alert alert-info d-none">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-file-alt me-2"></i>
+                                    <div>
+                                        <strong id="comparisonFileName">No file selected</strong>
+                                        <br>
+                                        <small class="text-muted" id="comparisonFileSize"></small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="alert alert-warning">
+                                <h6><i class="fas fa-exclamation-triangle me-2"></i>Required Headers</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <strong>Must contain:</strong>
+                                        <ul class="mb-0">
+                                            <li><code>SubGLCode</code></li>
+                                            <li><code>CostCenterID</code></li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong>Optional Fields:</strong>
+                                        <ul class="mb-0">
+                                            <li><code>SubHeadID</code></li>
+                                            <li><code>SubHead</code></li>
+                                            <li><code>Region</code></li>
+                                            <li><code>BCode</code></li>
+                                            <li><code>BName</code></li>
+                                            <li><code>Head</code></li>
+                                            <li><code>HeadID</code></li>
+                                            <li><code>CostCenter</code></li>
+                                            <li><code>ValidityDate</code></li>
+                                            <li><code>Description</code></li>
+                                            <li><code>BudgetID</code></li>
+                                            <li><code>BudgetAmount</code></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-success" id="uploadComparisonBtn" disabled>
+                                    <i class="fas fa-exchange-alt me-2"></i>Process - Insert/Update
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="text-center mt-4">
+                    <button class="btn btn-outline-secondary me-3" id="step2BackBtn">
+                        <i class="fas fa-arrow-left me-2"></i>Previous Step
+                    </button>
+                    <button class="btn btn-primary" id="step2NextBtn">
+                        <i class="fas fa-arrow-right me-2"></i>Next Step
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Database Matching -->
+    <div id="step3" class="step-content d-none">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">
+                            <i class="fas fa-upload me-2"></i>Database Matching
+                        </h4>
+                    </div>
+                    <div class="card-body p-4">
+                        <form action="/csv/upload" method="post" enctype="multipart/form-data" id="uploadForm">
+                            <div class="upload-zone p-4 text-center mb-4" id="uploadZoneStep3">
+                                <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                                <h5 class="mb-2">Drop file here or click to browse</h5>
+                                <p class="text-muted mb-3">CSV, XLS, XLSX</p>
+                                <input type="file" class="d-none" id="fileStep3" name="file" accept=".csv,.xlsx,.xls" required>
+                                <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('fileStep3').click()">
+                                    <i class="fas fa-folder-open me-2"></i>Choose File
+                                </button>
+                            </div>
+                            
+                            <div id="fileInfoStep3" class="alert alert-info d-none">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-file me-2"></i>
+                                    <div>
+                                        <strong id="fileNameStep3">No file selected</strong>
+                                        <br>
+                                        <small class="text-muted" id="fileSizeStep3"></small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="alert alert-warning">
+                                <h6><i class="fas fa-exclamation-triangle me-2"></i>Required Headers</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <strong>Must contain:</strong>
+                                        <ul class="mb-0">
+                                            <li><code>SubGLCode</code></li>
+                                            <li><code>BCode</code></li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong>Optional Fields:</strong>
+                                        <ul class="mb-0">
+                                            <li><code>SubHeadID</code></li>
+                                            <li><code>SubHead</code></li>
+                                            <li><code>Region</code></li>
+                                            <li><code>CostCenterID</code></li>
+                                            <li><code>BName</code></li>
+                                            <li><code>Head</code></li>
+                                            <li><code>HeadID</code></li>
+                                            <li><code>CostCenter</code></li>
+                                            <li><code>ValidityDate</code></li>
+                                            <li><code>Description</code></li>
+                                            <li><code>BudgetID</code></li>
+                                            <li><code>BudgetAmount</code></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary" id="uploadBtnStep3" disabled>
+                                    <i class="fas fa-upload me-2"></i>Process - Match DB
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="text-center mt-4">
+                    <button class="btn btn-outline-secondary me-3" id="step3BackBtn">
+                        <i class="fas fa-arrow-left me-2"></i>Previous Step
+                    </button>
+                    <a href="/" class="btn btn-success">
+                        <i class="fas fa-home me-2"></i>Complete Process
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<div class="row g-4 mb-5">
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body text-center">
-                <div class="feature-icon bg-primary text-white mx-auto">
-                    <i class="fas fa-file-csv fa-xl"></i>
+<!-- Processing Modal -->
+<div class="modal fade" id="processingModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center p-4">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Processing...</span>
                 </div>
-                <h5 class="card-title">Multi-Format Support</h5>
-                <p class="card-text">Process CSV, XLS, and XLSX files with automatic format detection and validation.</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body text-center">
-                <div class="feature-icon bg-success text-white mx-auto">
-                    <i class="fas fa-sync-alt fa-xl"></i>
-                </div>
-                <h5 class="card-title">Smart Sync</h5>
-                <p class="card-text">Intelligent matching of existing records with seamless new record insertion.</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body text-center">
-                <div class="feature-icon bg-warning text-white mx-auto">
-                    <i class="fas fa-shield-alt fa-xl"></i>
-                </div>
-                <h5 class="card-title">Data Validation</h5>
-                <p class="card-text">Comprehensive validation with detailed error reporting and duplicate detection.</p>
+                <h5>Processing your file...</h5>
+                <p class="text-muted mb-0">This may take a few moments depending on file size.</p>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
 
-<div class="row">
-    <div class="col-lg-8 mx-auto">
-        <div class="card">
-            <div class="card-header bg-light">
-                <h5 class="mb-0">
-                    <i class="fas fa-info-circle me-2"></i>Required Data Structure
-                </h5>
-            </div>
-            <div class="card-body">
-                <p class="mb-3">Your files must contain these exact column headers:</p>
-                <div class="row g-3">
-                    <div class="col-sm-6">
-                        <div class="d-flex align-items-center">
-                            <i class="fas fa-key text-primary me-2"></i>
-                            <span><strong>sub_gl_code</strong> - Primary identifier</span>
-                        </div>
-                    </div>
-                    <div class="col-sm-6">
-                        <div class="d-flex align-items-center">
-                            <i class="fas fa-tag text-success me-2"></i>
-                            <span><strong>sub_head</strong> - Category/subject</span>
-                        </div>
-                    </div>
-                    <div class="col-sm-6">
-                        <div class="d-flex align-items-center">
-                            <i class="fas fa-map-marker-alt text-warning me-2"></i>
-                            <span><strong>region</strong> - Geographic region</span>
-                        </div>
-                    </div>
-                    <div class="col-sm-6">
-                        <div class="d-flex align-items-center">
-                            <i class="fas fa-code text-info me-2"></i>
-                            <span><strong>branch_code</strong> - Branch identifier</span>
-                        </div>
-                    </div>
-                    <div class="col-12">
-                        <div class="d-flex align-items-center">
-                            <i class="fas fa-building text-secondary me-2"></i>
-                            <span><strong>branch_name</strong> - Branch location name</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+{% block styles %}
+<style>
+.progress-container {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.step-indicators {
+    margin-top: 1rem;
+}
+
+.step {
+    text-align: center;
+    flex: 1;
+    position: relative;
+}
+
+.step-number {
+    display: inline-block;
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    border-radius: 50%;
+    background-color: #e9ecef;
+    color: #6c757d;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.step.active .step-number {
+    background-color: #007bff;
+    color: white;
+}
+
+.step.completed .step-number {
+    background-color: #28a745;
+    color: white;
+}
+
+.step-label {
+    display: block;
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+.step.active .step-label {
+    color: #007bff;
+    font-weight: 500;
+}
+
+.step.completed .step-label {
+    color: #28a745;
+}
+
+.step-content {
+    transition: opacity 0.3s ease-in-out;
+}
+
+.upload-zone {
+    border: 2px dashed #dee2e6;
+    border-radius: 0.5rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.upload-zone:hover {
+    border-color: #007bff;
+    background-color: #f8f9fa;
+}
+
+.upload-zone.dragover {
+    border-color: #007bff;
+    background-color: #e3f2fd;
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentStep = 1;
+    const totalSteps = 3;
+
+    // Step navigation elements
+    const stepContents = document.querySelectorAll('.step-content');
+    const stepIndicators = document.querySelectorAll('.step');
+    const progressBar = document.getElementById('progressBar');
+
+    // Step 1 elements
+    const step1NextBtn = document.getElementById('step1NextBtn');
+    const fileInput = document.getElementById('file');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const fileInfo = document.getElementById('fileInfo');
+    const checkBtn = document.getElementById('checkBtn');
+
+    // Step 2 elements
+    const step2BackBtn = document.getElementById('step2BackBtn');
+    const step2NextBtn = document.getElementById('step2NextBtn');
+    const comparisonFileInput = document.getElementById('comparisonFile');
+    const comparisonFileName = document.getElementById('comparisonFileName');
+    const comparisonFileSize = document.getElementById('comparisonFileSize');
+    const comparisonFileInfo = document.getElementById('comparisonFileInfo');
+    const uploadComparisonBtn = document.getElementById('uploadComparisonBtn');
+
+    // Step 3 elements
+    const step3BackBtn = document.getElementById('step3BackBtn');
+    const fileInputStep3 = document.getElementById('fileStep3');
+    const fileNameStep3 = document.getElementById('fileNameStep3');
+    const fileSizeStep3 = document.getElementById('fileSizeStep3');
+    const fileInfoStep3 = document.getElementById('fileInfoStep3');
+    const uploadBtnStep3 = document.getElementById('uploadBtnStep3');
+
+    // Utility functions
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function showStep(step) {
+        // Hide all steps
+        stepContents.forEach(content => content.classList.add('d-none'));
+        
+        // Show current step
+        document.getElementById(`step${step}`).classList.remove('d-none');
+        
+        // Update indicators
+        stepIndicators.forEach((indicator, index) => {
+            indicator.classList.remove('active', 'completed');
+            if (index < step - 1) {
+                indicator.classList.add('completed');
+            } else if (index === step - 1) {
+                indicator.classList.add('active');
+            }
+        });
+        
+        // Update progress bar
+        const progress = (step / totalSteps) * 100;
+        progressBar.style.width = progress + '%';
+        
+        currentStep = step;
+    }
+
+    function handleFileSelect(input, nameElement, sizeElement, infoElement, actionButtonElement = null) {
+        return function() {
+            if (this.files && this.files.length > 0) {
+                const file = this.files[0];
+                const validTypes = ['.csv', '.xlsx', '.xls'];
+                const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+                
+                if (validTypes.includes(fileExtension)) {
+                    nameElement.textContent = file.name;
+                    sizeElement.textContent = formatFileSize(file.size);
+                    infoElement.classList.remove('d-none');
+                    // Enable action button if provided
+                    if (actionButtonElement) {
+                        actionButtonElement.disabled = false;
+                    }
+                } else {
+                    alert('Please select a valid CSV or Excel file.');
+                    this.value = '';
+                    // Disable action button if invalid file
+                    if (actionButtonElement) {
+                        actionButtonElement.disabled = true;
+                    }
+                }
+            } else {
+                // No file selected, disable action button
+                if (actionButtonElement) {
+                    actionButtonElement.disabled = true;
+                }
+            }
+        };
+    }
+
+    // Drag and drop functionality for Step 1
+    const uploadZone = document.getElementById('uploadZone');
+    if (uploadZone) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadZone.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadZone.addEventListener(eventName, () => uploadZone.classList.add('dragover'));
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadZone.addEventListener(eventName, () => uploadZone.classList.remove('dragover'));
+        });
+
+        uploadZone.addEventListener('drop', function(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                fileInput.dispatchEvent(new Event('change'));
+            }
+        });
+    }
+
+    // File input handlers
+    if (fileInput) {
+        fileInput.addEventListener('change', handleFileSelect(
+            fileInput, fileName, fileSize, fileInfo, checkBtn
+        ));
+    }
+
+    if (comparisonFileInput) {
+        comparisonFileInput.addEventListener('change', handleFileSelect(
+            comparisonFileInput, comparisonFileName, comparisonFileSize, comparisonFileInfo, uploadComparisonBtn
+        ));
+    }
+
+    if (fileInputStep3) {
+        fileInputStep3.addEventListener('change', handleFileSelect(
+            fileInputStep3, fileNameStep3, fileSizeStep3, fileInfoStep3, uploadBtnStep3
+        ));
+    }
+
+    // Navigation handlers
+    if (step1NextBtn) {
+        step1NextBtn.addEventListener('click', () => showStep(2));
+    }
+
+    if (step2BackBtn) {
+        step2BackBtn.addEventListener('click', () => showStep(1));
+    }
+
+    if (step2NextBtn) {
+        step2NextBtn.addEventListener('click', () => showStep(3));
+    }
+
+    if (step3BackBtn) {
+        step3BackBtn.addEventListener('click', () => showStep(2));
+    }
+
+    // Form submission handlers
+    const duplicateForm = document.getElementById('duplicateForm');
+    if (duplicateForm) {
+        duplicateForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (fileInput.files.length > 0) {
+                const modal = new bootstrap.Modal(document.getElementById('processingModal'));
+                modal.show();
+                this.submit();
+            }
+        });
+    }
+
+    const uploadComparisonForm = document.getElementById('uploadComparisonForm');
+    if (uploadComparisonForm) {
+        uploadComparisonForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (comparisonFileInput.files.length > 0) {
+                const modal = new bootstrap.Modal(document.getElementById('processingModal'));
+                modal.show();
+                this.submit();
+            }
+        });
+    }
+
+    const uploadFormStep3 = document.getElementById('uploadForm');
+    if (uploadFormStep3) {
+        uploadFormStep3.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (fileInputStep3.files.length > 0) {
+                const modal = new bootstrap.Modal(document.getElementById('processingModal'));
+                modal.show();
+                this.submit();
+            }
+        });
+    }
+
+    // Initialize first step
+    showStep(1);
+});
+</script>
 {% endblock %}

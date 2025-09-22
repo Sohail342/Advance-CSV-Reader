@@ -24,7 +24,6 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 from app.schemas import CSVRecordOut
-from sqlalchemy.inspection import inspect
 
 from app.utils.new_records import get_new_records
 from app.models import CSVHeaders
@@ -98,7 +97,7 @@ async def check_duplicate_file(
 
     if ext in EXCEL_EXTENSIONS:
         df = await read_excel_file(file)
-        validate_excel_headers(df, REQUIRED_HEADERS)
+        # validate_excel_headers(df, REQUIRED_HEADERS)
         records = excel_to_records(df, REQUIRED_HEADERS)
     else:
         content = await file.read()
@@ -379,25 +378,25 @@ async def process_batch(
 ) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]:
     # Extract lookup pairs
     lookup_pairs = [
-        (rec["SubGLCode"], rec["CostCenterID"])
+        (rec["SubGLCode"], rec["BCode"])
         for rec in batch
-        if rec.get("SubGLCode") and rec.get("CostCenterID")
+        if rec.get("SubGLCode") and rec.get("BCode")
     ]
 
     stmt = select(CSVHeaders).where(
-        tuple_(CSVHeaders.SubGLCode, CSVHeaders.CostCenterID).in_(lookup_pairs)
+        tuple_(CSVHeaders.SubGLCode, CSVHeaders.BCode).in_(lookup_pairs)
     )
     result = await db.execute(stmt)
     existing_records = result.scalars().all()
     
     # Build a lookup map
-    existing_map = {(str(e.SubGLCode), str(e.CostCenterID)): e for e in existing_records}
+    existing_map = {(str(e.SubGLCode), str(e.BCode)): e for e in existing_records}
 
     matched = []
     new_objs = []
 
     for rec in batch:
-        key = (rec["SubGLCode"], rec["CostCenterID"])
+        key = (rec["SubGLCode"], rec["BCode"])
         if key in existing_map:
             stats["matched_records"] += 1
             matched.append(rec)
@@ -472,7 +471,7 @@ async def process_csv_file(
             records_from_db, out_of_scop = await get_new_records(
                 columns_missed=True,
                 SubGLCode=str(row["SubGLCode"]),
-                CostCenterID=str(row["CostCenterID"]),
+                BCode=str(row["BCode"]),
                 db=db,
             )
             if records_from_db:
@@ -588,7 +587,6 @@ async def upload_data_file(
 @router.post("/upload-comparison")
 async def upload_or_insert_data(
     request: Request,
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):

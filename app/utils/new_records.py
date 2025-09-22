@@ -4,7 +4,7 @@ from app.models import CSVHeaders
 from fastapi import HTTPException
 
 
-async def get_new_records(columns_missed: bool, SubGLCode: str = None, CostCenterID: str = None, db: AsyncSession = None):
+async def get_new_records(columns_missed: bool, SubGLCode: str = None, BCode: str = None, db: AsyncSession = None):
     out_of_scop = []
     if not columns_missed:
         return [], []
@@ -26,10 +26,10 @@ async def get_new_records(columns_missed: bool, SubGLCode: str = None, CostCente
             CSVHeaders.ValidityDate,
             CSVHeaders.Description,
         )
-        if SubGLCode and CostCenterID:
+        if SubGLCode and BCode:
             q = q.where(
                 CSVHeaders.SubGLCode == SubGLCode,
-                CSVHeaders.CostCenterID == CostCenterID,
+                CSVHeaders.BCode == BCode,
             )
         elif SubGLCode:
             q = q.where(CSVHeaders.SubGLCode == SubGLCode)
