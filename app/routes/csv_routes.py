@@ -663,6 +663,7 @@ async def upload_or_insert_data(
 
         inserted_records = []
         updated_records = []
+        new_record = []
 
         # Process in batches for better performance
         batch_size = 100
@@ -713,7 +714,7 @@ async def upload_or_insert_data(
                         stats["updated_records"] += 1
                     else:
                         # Insert new record
-                        new_record = CSVHeaders(
+                        new_record.append(CSVHeaders(
                             CostCenterID=record["CostCenterID"],
                             SubHeadID=record["SubHeadID"],
                             SubGLCode=record["SubGLCode"],
@@ -728,7 +729,7 @@ async def upload_or_insert_data(
                             BudgetAmount=record["BudgetAmount"],
                             ValidityDate=record["ValidityDate"],
                             Description=record["Description"],
-                        )
+                        ))
                         
                         inserted_records.append(record)
                         stats["inserted_records"] += 1
@@ -737,7 +738,7 @@ async def upload_or_insert_data(
                     stats["error_records"] += 1
                     stats["errors"].append(f"Error processing record: {str(e)}")
 
-        db.add(new_record)
+        db.add_all(new_record)
 
         await db.commit()
 
