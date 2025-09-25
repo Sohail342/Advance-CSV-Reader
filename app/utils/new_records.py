@@ -4,11 +4,10 @@ from app.models import CSVHeaders
 from fastapi import HTTPException
 
 
-async def get_new_records(columns_missed: bool, SubGLCode: str = None, BCode: str = None, db: AsyncSession = None):
+async def get_records_from_db(
+    SubGLCode: str = None, BCode: str = None, db: AsyncSession = None
+):
     out_of_scop = []
-    if not columns_missed:
-        return [], []
-
     try:
         q = select(
             CSVHeaders.SubGLCode,
@@ -39,7 +38,6 @@ async def get_new_records(columns_missed: bool, SubGLCode: str = None, BCode: st
 
         if not rows:
             # out of scope → return SubGLCode for reporting
-            print(SubGLCode)
             out_of_scop.append(SubGLCode)
 
         new_records_list = [dict(row._mapping) for row in rows]

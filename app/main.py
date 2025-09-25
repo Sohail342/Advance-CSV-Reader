@@ -1,4 +1,3 @@
-import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -36,4 +35,3 @@ async def root(request: Request):
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
-

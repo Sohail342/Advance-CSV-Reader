@@ -22,15 +22,12 @@ from fastapi import (
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import SQLAlchemyError
-from app.schemas import CSVRecordOut
 
-from app.utils.new_records import get_new_records
+from app.utils.new_records import get_records_from_db
 from app.models import CSVHeaders
 from app.utils.database import get_db
 from app.utils.excel_processor import (
     read_excel_file,
-    validate_excel_headers,
     excel_to_records,
     EXCEL_EXTENSIONS,
 )
@@ -41,20 +38,54 @@ router = APIRouter(prefix="/csv", tags=["CSV Processing"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
 columns_for_matched_records = [
-    "SubGLCode", "CostCenterID", "SubHeadID", "SubHead", "Region", "BCode", "BName",
-    "Head", "HeadID", "CostCenter", 
-    "ValidityDate", "Description", "BudgetID", "BudgetAmount", "NewBudget", "NewOldAmountComparison"
+    "SubGLCode",
+    "CostCenterID",
+    "SubHeadID",
+    "SubHead",
+    "Region",
+    "BCode",
+    "BName",
+    "Head",
+    "HeadID",
+    "CostCenter",
+    "ValidityDate",
+    "Description",
+    "BudgetID",
+    "BudgetAmount",
+    "NewBudget",
+    "NewOldAmountComparison",
 ]
 
 columns_for_unmatched_records = [
-    "SubGLCode", "CostCenterID", "SubHeadID", "SubHead", "Region", "BCode", "BName",
-    "Head", "HeadID", "CostCenter", 
-    "ValidityDate", "Description", "BudgetID", "BudgetAmount",
+    "SubGLCode",
+    "CostCenterID",
+    "SubHeadID",
+    "SubHead",
+    "Region",
+    "BCode",
+    "BName",
+    "Head",
+    "HeadID",
+    "CostCenter",
+    "ValidityDate",
+    "Description",
+    "BudgetID",
+    "BudgetAmount",
 ]
 
 columns_for_matched_records_ready_to_upload = [
-    "BudgetID", "HeadID", "Head", "SubHeadID", "SubHead", "CostCenterID", "CostCenter",
-    "BudgetAmount", "ValidityDate", "Description", "NewBudget", "NewOldAmountComparison"
+    "BudgetID",
+    "HeadID",
+    "Head",
+    "SubHeadID",
+    "SubHead",
+    "CostCenterID",
+    "CostCenter",
+    "BudgetAmount",
+    "ValidityDate",
+    "Description",
+    "NewBudget",
+    "NewOldAmountComparison",
 ]
 
 REQUIRED_HEADERS = [
@@ -115,7 +146,6 @@ async def check_duplicate_file(
                 "error": "No valid records found in the file",
             },
         )
-    
 
     duplicates = []
     unique_set = set()
@@ -171,7 +201,6 @@ async def check_duplicate_file(
     else:
         # Convert duplicates to dataframe
         duplicates_csv = pd.DataFrame(duplicates)
-
         # Save to temporary file
         temp_file = tempfile.NamedTemporaryFile(mode="w+", suffix=".csv", delete=False)
         duplicates_csv.to_csv(temp_file.name, index=False)
@@ -182,7 +211,7 @@ async def check_duplicate_file(
             {
                 "request": request,
                 "title": "Check Duplicates",
-                "duplicates": duplicates,
+                "duplicates": duplicates if len(duplicates_csv) > 0 else None,
                 "message": f"Found {len(duplicates)} duplicate records"
                 if duplicates
                 else "No duplicate records found",
@@ -263,15 +292,11 @@ async def remove_duplicate_records_file(
         cleaned_filename = f"cleaned_{file.filename}"
         cleaned_path = os.path.join(temp_dir, cleaned_filename)
 
-       
         cleaned_df.to_csv(cleaned_path, index=False)
-       
 
         # Return cleaned file directly
         return FileResponse(
-            path=cleaned_path,
-            filename=cleaned_filename,
-            media_type="text/csv"
+            path=cleaned_path, filename=cleaned_filename, media_type="text/csv"
         )
 
     except Exception as e:
@@ -334,32 +359,6 @@ def cleanup_directory(dir_path: Path):
         logger.error(f"Error cleaning up directory {dir_path}: {str(e)}")
 
 
-@router.get("/search_existing", response_model=List[CSVRecordOut])
-async def search_existing_records(
-    sub_gl_codes: List[str] = Q(...),
-    branch_codes: List[str] = Q(...),
-    db: AsyncSession = Depends(get_db),
-):
-    if not sub_gl_codes or not branch_codes:
-        raise HTTPException(
-            status_code=400, detail="sub_gl_codes and branch_codes are required"
-        )
-
-    try:
-        stmt = select(CSVHeaders).where(
-            CSVHeaders.SubGLCode.in_(sub_gl_codes),
-            CSVHeaders.BCode.in_(branch_codes),
-        )
-        result = await db.execute(stmt)
-        records = result.scalars().all()
-        if not records:
-            raise HTTPException(status_code=404, detail="No matching records found")
-        return records
-    except SQLAlchemyError as e:
-        logger.error(f"Database error during search: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
 def save_df_to_temp_file(df: pd.DataFrame, suffix: str = ".csv") -> str:
     temp = tempfile.NamedTemporaryFile(
         delete=False, suffix=suffix, mode="w", newline="", encoding="utf-8"
@@ -384,7 +383,7 @@ async def process_batch(
     )
     result = await db.execute(stmt)
     existing_records = result.scalars().all()
-    
+
     # Build a lookup map
     existing_map = {(str(e.SubGLCode), str(e.BCode)): e for e in existing_records}
 
@@ -405,14 +404,6 @@ async def process_batch(
         pd.DataFrame(new_objs) if new_objs else None,
     )
 
-@router.get("/test/{code}")
-async def text(code: str, db: AsyncSession = Depends(get_db)):
-    records_from_db = await get_new_records(
-                    columns_missed=True,
-                    SubGLCode=code,
-                    db=db,
-                )
-    return JSONResponse(records_from_db)
 
 async def process_csv_file(
     file: UploadFile, db: AsyncSession
@@ -422,6 +413,7 @@ async def process_csv_file(
         "matched_records": 0,
         "new_records": 0,
         "error_records": 0,
+        "out_of_scop": 0,
         "errors": [],
     }
 
@@ -447,92 +439,100 @@ async def process_csv_file(
 
     stats["total_rows"] = stats["total_rows"] or len(records)
 
-    # --- Holders ---
-    all_matched = []
-    all_new = []
-    all_matched_two = []
-    all_out_of_scope = []
-
-    df_matched = None
-    df_new = None
+    # --- Collect results ---
+    all_matched_records = []
+    all_new_records = []
 
     batch_size = 100
     for i in range(0, len(records), batch_size):
-        batch = records[i: i + batch_size]
-        df_matched, df_new = await process_batch(batch, db, stats)
+        batch = records[i : i + batch_size]
+        batch_matched, batch_new = await process_batch(batch, db, stats)
+
+        if batch_matched is not None:
+            all_matched_records.extend(batch_matched.to_dict("records"))
+
+        if batch_new is not None:
+            all_new_records.extend(batch_new.to_dict("records"))
+
+    # --- Build DataFrames ---
+    df_matched = pd.DataFrame(all_matched_records) if all_matched_records else None
+    df_new = pd.DataFrame(all_new_records) if all_new_records else None
+    out_of_scope_list = []
 
     # --- Process Matched ---
+    df_matched_two = None
     if df_matched is not None and not df_matched.empty:
-        for _, row in df_matched.iterrows():
-            records_from_db, out_of_scop = await get_new_records(
-                columns_missed=True,
-                SubGLCode=str(row["SubGLCode"]),
-                BCode=str(row["BCode"]),
-                db=db,
-            )
-            if records_from_db:
-                for rec in records_from_db:
-                    rec["NewBudget"] = row["RemainingBudget"]
-                    rec["NewOldAmountComparison"] = (
-                        "True" if str(row["RemainingBudget"]) == str(rec["BudgetAmount"]) else "False"
-                    )
+        df_matched["NewBudget"] = df_matched["RemainingBudget"]
+        df_matched["NewOldAmountComparison"] = (
+            df_matched["RemainingBudget"].astype(str)
+            == df_matched["BudgetAmount"].astype(str)
+        ).astype(str)
 
-                df_db = pd.DataFrame(records_from_db)
+        # Ensure all required columns exist
+        for col in columns_for_matched_records:
+            if col not in df_matched:
+                df_matched[col] = ""
 
-                # Fill missing columns
-                for col in columns_for_matched_records:
-                    if col not in df_db:
-                        df_db[col] = ""
+        df_matched = df_matched[columns_for_matched_records]
 
-                df_db = df_db[columns_for_matched_records]
-                all_matched.append(df_db)
-
-                # Format two
-                if all(col in df_db.columns for col in columns_for_matched_records_ready_to_upload):
-                    df_db_format_two = df_db[columns_for_matched_records_ready_to_upload]
-                    all_matched_two.append(df_db_format_two)
+        # Second format
+        if all(col in df_matched.columns for col in columns_for_matched_records_ready_to_upload):
+            df_matched_two = df_matched[columns_for_matched_records_ready_to_upload]
 
     # --- Process New ---
+    all_new_dfs = []
     if df_new is not None and not df_new.empty:
         for _, row in df_new.iterrows():
-            records_from_db, out_of_scope = await get_new_records(
-                columns_missed=True,
+            # fetch sample rows from db
+            records_from_db, out_of_scope = await get_records_from_db(
                 SubGLCode=str(row["SubGLCode"]),
                 db=db,
             )
 
             if out_of_scope:
-                all_out_of_scope.extend(out_of_scope)
+                stats["out_of_scop"] += 1
+                out_of_scope_list.extend(out_of_scope)
 
             if records_from_db:
+                # pick first row as "sample"
+                sample = records_from_db[0]
 
-                df_db = pd.DataFrame(records_from_db)
+                # create a new record by copying sample and updating fields from CSV
+                new_record = sample.copy()
+                new_record["SubGLCode"] = row["SubGLCode"]
+                new_record["RemainingBudget"] = row["RemainingBudget"]
 
+                # add other CSV headers if needed
+                for col in row.index:
+                    new_record[col] = row[col]
+
+                df_db = pd.DataFrame([new_record])
+
+                # fill missing required columns
                 for col in columns_for_unmatched_records:
                     if col not in df_db:
                         df_db[col] = ""
 
                 df_db = df_db[columns_for_unmatched_records]
-                all_new.append(df_db)
+                all_new_dfs.append(df_db)
 
-    # --- Concatenate Helper ---
-    def concat(dfs):
-        return pd.concat(dfs, ignore_index=True) if dfs else None
+    new_df = pd.concat(all_new_dfs, ignore_index=True) if all_new_dfs else None
+    out_of_scope_df = (
+        pd.DataFrame(out_of_scope_list, columns=["SubGLCode"])
+        if out_of_scope_list
+        else None
+    )
 
-    matched_df = concat(all_matched)
-    matched_two_df = concat(all_matched_two)
-    new_df = concat(all_new)
-    out_of_scope_df = pd.DataFrame(all_out_of_scope, columns=["SubGLCode"])
 
     # --- Save to temp files ---
     matched_path = (
-        save_df_to_temp_file(matched_df)
-        if matched_df is not None and not matched_df.empty
+        save_df_to_temp_file(df_matched)
+        if df_matched is not None and not df_matched.empty
         else None
     )
     matched_two_path = (
-        save_df_to_temp_file(matched_two_df)
-        if matched_two_df is not None and not matched_two_df.empty
+        save_df_to_temp_file(df_matched_two)
+        if df_matched_two is not None and not df_matched_two.empty
         else None
     )
     new_path = (
@@ -549,7 +549,6 @@ async def process_csv_file(
     return stats, matched_path, matched_two_path, new_path, out_of_scope_path
 
 
-
 @router.get("/upload", response_class=HTMLResponse)
 async def get_upload_form(request: Request):
     return templates.TemplateResponse(
@@ -563,10 +562,21 @@ async def upload_data_file(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
-    stats, matched_path, matched_two_path, new_path, out_of_scope_df = await process_csv_file(file, db)
+    (
+        stats,
+        matched_path,
+        matched_two_path,
+        new_path,
+        out_of_scope_df,
+    ) = await process_csv_file(file, db)
 
     csv_id = str(uuid4())
-    csv_store[csv_id] = {"matched": matched_path, "matched_ready_to_upload": matched_two_path, "out_of_scop_glcodes_path":out_of_scope_df, "new": new_path}
+    csv_store[csv_id] = {
+        "matched": matched_path,
+        "matched_ready_to_upload": matched_two_path,
+        "out_of_scop_glcodes_path": out_of_scope_df,
+        "new": new_path,
+    }
 
     return templates.TemplateResponse(
         "result.html",
@@ -679,10 +689,12 @@ async def upload_or_insert_data(
             result = await db.execute(stmt)
             existing_records = result.scalars().all()
 
-
             # Create lookup map
-            existing_map = {(str(rec.SubGLCode), str(rec.CostCenterID)): rec for rec in existing_records}
-            
+            existing_map = {
+                (str(rec.SubGLCode), str(rec.CostCenterID)): rec
+                for rec in existing_records
+            }
+
             # Process each record in batch
             for record in batch:
                 try:
@@ -707,23 +719,25 @@ async def upload_or_insert_data(
                         stats["updated_records"] += 1
                     else:
                         # Insert new record
-                        new_record.append(CSVHeaders(
-                            CostCenterID=record["CostCenterID"],
-                            SubHeadID=record["SubHeadID"],
-                            SubGLCode=record["SubGLCode"],
-                            SubHead=record["SubHead"],
-                            Region=record["Region"],
-                            BCode=record["BCode"],
-                            BName=record["BName"],
-                            BudgetID=record["BudgetID"],
-                            Head=record["Head"],
-                            HeadID=record["HeadID"],
-                            CostCenter=record["CostCenter"],
-                            BudgetAmount=record["BudgetAmount"],
-                            ValidityDate=record["ValidityDate"],
-                            Description=record["Description"],
-                        ))
-                        
+                        new_record.append(
+                            CSVHeaders(
+                                CostCenterID=record["CostCenterID"],
+                                SubHeadID=record["SubHeadID"],
+                                SubGLCode=record["SubGLCode"],
+                                SubHead=record["SubHead"],
+                                Region=record["Region"],
+                                BCode=record["BCode"],
+                                BName=record["BName"],
+                                BudgetID=record["BudgetID"],
+                                Head=record["Head"],
+                                HeadID=record["HeadID"],
+                                CostCenter=record["CostCenter"],
+                                BudgetAmount=record["BudgetAmount"],
+                                ValidityDate=record["ValidityDate"],
+                                Description=record["Description"],
+                            )
+                        )
+
                         inserted_records.append(record)
                         stats["inserted_records"] += 1
 

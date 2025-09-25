@@ -105,6 +105,17 @@
                 </div>
             </div>
         </div>
+        <div class="col-6 col-sm-4 col-md-2">
+            <div class="card shadow-sm stat-card text-center">
+                <div class="card-body p-2">
+                    <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center mx-auto mb-2 stat-icon">
+                        <i class="fas fa-link"></i>
+                    </div>
+                    <h6 class="fw-bold text-success mb-0">{{ result.out_of_scop }}</h6>
+                    <small class="text-muted">Out of Scope</small>
+                </div>
+            </div>
+        </div>
         {% endif %}
 
         <div class="col-6 col-sm-4 col-md-2">
@@ -172,7 +183,7 @@
                     </a>
                 </div>
                 <div class="col-6 col-md-3">
-                    <a href="/csv/download/{{ csv_id }}/matched_ready_to_upload" class="btn btn-info btn-sm download-btn w-100 shadow-sm">
+                    <a href="/csv/download/{{ csv_id }}/out_of_scop_glcodes_path" class="btn btn-info btn-sm download-btn w-100 shadow-sm">
                         <i class="fas fa-download me-1"></i> Out of Scope (SubGlCode are found)
                     </a>
                 </div>

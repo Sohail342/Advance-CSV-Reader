@@ -1,6 +1,6 @@
 import logging
 from sqlalchemy import select, text
-from typing import Dict, Any, Optional
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates

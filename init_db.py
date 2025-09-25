@@ -1,6 +1,5 @@
 import asyncio
 from app.utils.database import engine, Base
-from app.models.csv_headers import CSVHeaders
 
 
 async def init_database():
