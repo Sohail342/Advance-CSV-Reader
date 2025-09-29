@@ -41,6 +41,7 @@ async def get_records_from_db(
             out_of_scop.append(SubGLCode)
 
         new_records_list = [dict(row._mapping) for row in rows]
+        
         return new_records_list, out_of_scop
     except Exception as e:
         raise HTTPException(

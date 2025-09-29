@@ -499,12 +499,6 @@ async def process_csv_file(
 
                 # create a new record by copying sample and updating fields from CSV
                 new_record = sample.copy()
-                new_record["SubGLCode"] = row["SubGLCode"]
-                new_record["RemainingBudget"] = row["RemainingBudget"]
-
-                # add other CSV headers if needed
-                for col in row.index:
-                    new_record[col] = row[col]
 
                 df_db = pd.DataFrame([new_record])
 
