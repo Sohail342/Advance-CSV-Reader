@@ -81,9 +81,9 @@ columns_for_matched_records_ready_to_upload = [
     "SubHead",
     "CostCenterID",
     "CostCenter",
-    "BudgetAmount",
     "ValidityDate",
     "Description",
+    "BudgetAmount",
     "NewBudget",
     "NewOldAmountComparison",
 ]
@@ -103,7 +103,7 @@ REQUIRED_HEADERS = [
     "BudgetAmount",
     "ValidityDate",
     "Description",
-    "RemainingBudget",
+    "BudgetAmount",
 ]
 
 csv_store: Dict[str, Dict[str, Optional[str]]] = {}
@@ -384,6 +384,8 @@ async def process_batch(
     result = await db.execute(stmt)
     existing_records = result.scalars().all()
 
+    print(f"Existing records fetched: {len(existing_records)}: {[rec.BCode for rec in existing_records]}")
+
     # Build a lookup map
     existing_map = {(str(e.SubGLCode), str(e.BCode)): e for e in existing_records}
 
@@ -394,11 +396,22 @@ async def process_batch(
         key = (rec["SubGLCode"], rec["BCode"])
         if key in existing_map:
             stats["matched_records"] += 1
-            matched.append(rec)
+            # Convert DB record to dict
+            db_obj = existing_map[key]
+            db_dict = {c.name: getattr(db_obj, c.name) for c in db_obj.__table__.columns}
+
+
+            # Merge CSV + DB values (CSV wins if overlap)
+            merged = {}
+            for k, v in db_dict.items():
+                csv_val = rec.get(k, "")
+                merged[k] = csv_val if csv_val not in (None, "", " ") else v
+
+            matched.append(merged)
+            print(f"Matched record: {merged}")
         else:
             stats["new_records"] += 1
             new_objs.append(rec)
-
     return (
         pd.DataFrame(matched) if matched else None,
         pd.DataFrame(new_objs) if new_objs else None,
@@ -450,6 +463,7 @@ async def process_csv_file(
 
         if batch_matched is not None:
             all_matched_records.extend(batch_matched.to_dict("records"))
+            print(f"Batch matched records: {len(all_matched_records)}: {[all_matched_records]}")
 
         if batch_new is not None:
             all_new_records.extend(batch_new.to_dict("records"))
@@ -462,16 +476,11 @@ async def process_csv_file(
     # --- Process Matched ---
     df_matched_two = None
     if df_matched is not None and not df_matched.empty:
-        df_matched["NewBudget"] = df_matched["RemainingBudget"]
+        df_matched["NewBudget"] = df_matched["BudgetAmount"]
         df_matched["NewOldAmountComparison"] = (
-            df_matched["RemainingBudget"].astype(str)
+            df_matched["BudgetAmount"].astype(str)
             == df_matched["BudgetAmount"].astype(str)
         ).astype(str)
-
-        # Ensure all required columns exist
-        for col in columns_for_matched_records:
-            if col not in df_matched:
-                df_matched[col] = ""
 
         df_matched = df_matched[columns_for_matched_records]
 
