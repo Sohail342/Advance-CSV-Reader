@@ -476,24 +476,36 @@ async def process_csv_file(
     # --- Process Matched ---
     df_matched_two = None
     if df_matched is not None and not df_matched.empty:
-        for _, row in df_new.iterrows():
-            # fetch sample rows from db
-            records_from_db, out_of_scope = await get_records_from_db(
+        new_budgets = []
+        comparisons = []
+
+        for _, row in df_matched.iterrows():
+            records_from_db, _ = await get_records_from_db(
                 SubGLCode=str(row["SubGLCode"]),
                 BCode=str(row["BCode"]),
                 db=db,
             )
-            df_matched["NewBudget"] = row["BudgetAmount"]
-            df_matched["NewOldAmountComparison"] = (
-                str(row["BudgetAmount"])
-                == df_matched["BudgetAmount"].astype(str)
-            ).astype(str)
 
+            if records_from_db:
+                db_budget = str(records_from_db[0]["BudgetAmount"])  # first DB row
+            else:
+                db_budget = ""
+
+            # store for later assignment
+            new_budgets.append(db_budget)
+            comparisons.append(str(row["BudgetAmount"]) == db_budget)
+
+        # add as new columns
+        df_matched["NewBudget"] = new_budgets
+        df_matched["NewOldAmountComparison"] = comparisons
+
+        # reorder/keep only required columns
         df_matched = df_matched[columns_for_matched_records]
 
         # Second format
         if all(col in df_matched.columns for col in columns_for_matched_records_ready_to_upload):
             df_matched_two = df_matched[columns_for_matched_records_ready_to_upload]
+
 
     # --- Process New ---
     all_new_dfs = []
