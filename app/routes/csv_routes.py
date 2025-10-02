@@ -483,11 +483,11 @@ async def process_csv_file(
                 BCode=str(row["BCode"]),
                 db=db,
             )
-        df_matched["NewBudget"] = row["BudgetAmount"]
-        df_matched["NewOldAmountComparison"] = (
-            str(row["BudgetAmount"])
-            == df_matched["BudgetAmount"].astype(str)
-        ).astype(str)
+            df_matched["NewBudget"] = row["BudgetAmount"]
+            df_matched["NewOldAmountComparison"] = (
+                str(row["BudgetAmount"])
+                == df_matched["BudgetAmount"].astype(str)
+            ).astype(str)
 
         df_matched = df_matched[columns_for_matched_records]
 
