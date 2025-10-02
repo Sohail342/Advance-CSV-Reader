@@ -476,9 +476,16 @@ async def process_csv_file(
     # --- Process Matched ---
     df_matched_two = None
     if df_matched is not None and not df_matched.empty:
-        df_matched["NewBudget"] = df_matched["BudgetAmount"]
+        for _, row in df_new.iterrows():
+            # fetch sample rows from db
+            records_from_db, out_of_scope = await get_records_from_db(
+                SubGLCode=str(row["SubGLCode"]),
+                BCode=str(row["BCode"]),
+                db=db,
+            )
+        df_matched["NewBudget"] = row["BudgetAmount"]
         df_matched["NewOldAmountComparison"] = (
-            df_matched["BudgetAmount"].astype(str)
+            str(row["BudgetAmount"])
             == df_matched["BudgetAmount"].astype(str)
         ).astype(str)
 
@@ -516,6 +523,15 @@ async def process_csv_file(
                     if col not in df_db:
                         df_db[col] = ""
 
+                # update with CSV file values
+                new_record.update({
+                "CostCenterID": str(row.get("CostCenterID", "")),
+                "BCode": str(row.get("BCode", "")),
+                "BName": str(row.get("BName", "")),
+                "Region": str(row.get("Region", "")),
+                
+            })
+                
                 df_db = df_db[columns_for_unmatched_records]
                 all_new_dfs.append(df_db)
 
