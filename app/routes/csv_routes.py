@@ -51,8 +51,8 @@ columns_for_matched_records = [
     "ValidityDate",
     "Description",
     "BudgetID",
+    "DBAmountBudget",
     "BudgetAmount",
-    "NewBudget",
     "NewOldAmountComparison",
 ]
 
@@ -487,7 +487,7 @@ async def process_csv_file(
             )
 
             if records_from_db:
-                db_budget = str(records_from_db[0]["BudgetAmount"])  # first DB row
+                db_budget = str(records_from_db[0]["BudgetAmount"])
             else:
                 db_budget = ""
 
@@ -496,7 +496,7 @@ async def process_csv_file(
             comparisons.append(str(row["BudgetAmount"]) == db_budget)
 
         # add as new columns
-        df_matched["NewBudget"] = new_budgets
+        df_matched["DBAmountBudget"] = new_budgets
         df_matched["NewOldAmountComparison"] = comparisons
 
         # reorder/keep only required columns
