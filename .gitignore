@@ -5,7 +5,8 @@ __pycache__/
 
 # C extensions
 *.so
-
+quick_dummy_data.py
+generate_dummy_data.py
 csv_data.db
 
 # Distribution / packaging

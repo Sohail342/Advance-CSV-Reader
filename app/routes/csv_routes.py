@@ -858,3 +858,168 @@ def download_csv(csv_id: str, csv_type: str, background_tasks: BackgroundTasks):
 
     background_tasks.add_task(cleanup_csv_file)
     return response
+
+
+@router.get("/data-viewer", response_class=HTMLResponse)
+async def data_viewer(request: Request):
+    """Display page for viewing all CSV headers data with filtering"""
+    return templates.TemplateResponse(
+        "data_viewer.html",
+        {
+            "request": request,
+            "title": "Data Viewer",
+        },
+    )
+
+
+@router.get("/api/data")
+async def get_all_data(
+    request: Request,
+    page: int = Q(1, ge=1),
+    limit: int = Q(50, ge=1, le=1000),
+    search: Optional[str] = Q(None),
+    cost_center_id: Optional[str] = Q(None),
+    sub_gl_code: Optional[str] = Q(None),
+    region: Optional[str] = Q(None),
+    b_code: Optional[str] = Q(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """API endpoint to get filtered CSV headers data with pagination"""
+    try:
+        # Build base query
+        query = select(CSVHeaders)
+        
+        # Apply filters
+        if search:
+            search_term = f"%{search}%"
+            query = query.where(
+                (CSVHeaders.CostCenterID.ilike(search_term)) |
+                (CSVHeaders.SubGLCode.ilike(search_term)) |
+                (CSVHeaders.SubHead.ilike(search_term)) |
+                (CSVHeaders.Region.ilike(search_term)) |
+                (CSVHeaders.BCode.ilike(search_term)) |
+                (CSVHeaders.BName.ilike(search_term)) |
+                (CSVHeaders.Head.ilike(search_term)) |
+                (CSVHeaders.CostCenter.ilike(search_term)) |
+                (CSVHeaders.Description.ilike(search_term))
+            )
+        
+        if cost_center_id:
+            query = query.where(CSVHeaders.CostCenterID.ilike(f"%{cost_center_id}%"))
+        
+        if sub_gl_code:
+            query = query.where(CSVHeaders.SubGLCode.ilike(f"%{sub_gl_code}%"))
+        
+        if region:
+            query = query.where(CSVHeaders.Region.ilike(f"%{region}%"))
+        
+        if b_code:
+            query = query.where(CSVHeaders.BCode.ilike(f"%{b_code}%"))
+        
+        # Get total count for pagination
+        from sqlalchemy import func
+        count_query = select(func.count(CSVHeaders.id))
+        
+        # Apply the same filters to count query
+        if search:
+            search_term = f"%{search}%"
+            count_query = count_query.where(
+                (CSVHeaders.CostCenterID.ilike(search_term)) |
+                (CSVHeaders.SubGLCode.ilike(search_term)) |
+                (CSVHeaders.SubHead.ilike(search_term)) |
+                (CSVHeaders.Region.ilike(search_term)) |
+                (CSVHeaders.BCode.ilike(search_term)) |
+                (CSVHeaders.BName.ilike(search_term)) |
+                (CSVHeaders.Head.ilike(search_term)) |
+                (CSVHeaders.CostCenter.ilike(search_term)) |
+                (CSVHeaders.Description.ilike(search_term))
+            )
+        
+        if cost_center_id:
+            count_query = count_query.where(CSVHeaders.CostCenterID.ilike(f"%{cost_center_id}%"))
+        
+        if sub_gl_code:
+            count_query = count_query.where(CSVHeaders.SubGLCode.ilike(f"%{sub_gl_code}%"))
+        
+        if region:
+            count_query = count_query.where(CSVHeaders.Region.ilike(f"%{region}%"))
+        
+        if b_code:
+            count_query = count_query.where(CSVHeaders.BCode.ilike(f"%{b_code}%"))
+        
+        total_result = await db.execute(count_query)
+        total_count = total_result.scalar()
+        
+        # Apply pagination
+        offset = (page - 1) * limit
+        query = query.offset(offset).limit(limit)
+        
+        # Execute query
+        result = await db.execute(query)
+        records = result.scalars().all()
+        
+        # Convert to dict format
+        data = []
+        for record in records:
+            data.append({
+                "id": record.id,
+                "CostCenterID": record.CostCenterID,
+                "SubHeadID": record.SubHeadID,
+                "SubGLCode": record.SubGLCode,
+                "SubHead": record.SubHead,
+                "Region": record.Region,
+                "BCode": record.BCode,
+                "BName": record.BName,
+                "BudgetID": record.BudgetID,
+                "Head": record.Head,
+                "HeadID": record.HeadID,
+                "CostCenter": record.CostCenter,
+                "BudgetAmount": record.BudgetAmount,
+                "ValidityDate": record.ValidityDate,
+                "Description": record.Description,
+            })
+        
+        return {
+            "data": data,
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": total_count,
+                "pages": (total_count + limit - 1) // limit,
+            },
+            "filters": {
+                "search": search,
+                "cost_center_id": cost_center_id,
+                "sub_gl_code": sub_gl_code,
+                "region": region,
+                "b_code": b_code,
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching data: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching data: {str(e)}")
+
+
+@router.get("/api/filter-options")
+async def get_filter_options(db: AsyncSession = Depends(get_db)):
+    """Get unique values for filter dropdowns"""
+    try:
+        # Get unique values for each filterable field
+        cost_center_query = select(CSVHeaders.CostCenterID).distinct().where(CSVHeaders.CostCenterID.isnot(None))
+        region_query = select(CSVHeaders.Region).distinct().where(CSVHeaders.Region.isnot(None))
+        b_code_query = select(CSVHeaders.BCode).distinct().where(CSVHeaders.BCode.isnot(None))
+        
+        cost_centers = await db.execute(cost_center_query)
+        regions = await db.execute(region_query)
+        b_codes = await db.execute(b_code_query)
+        
+        return {
+            "cost_centers": [row[0] for row in cost_centers.fetchall() if row[0]],
+            "regions": [row[0] for row in regions.fetchall() if row[0]],
+            "b_codes": [row[0] for row in b_codes.fetchall() if row[0]],
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching filter options: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching filter options: {str(e)}")
