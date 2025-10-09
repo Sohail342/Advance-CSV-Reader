@@ -6,9 +6,10 @@ import logging
 from uuid import uuid4
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
-from sqlalchemy import tuple_, select
+from sqlalchemy import tuple_, select, or_, and_
 
 import pandas as pd
+from app.utils.search_service import search_for_multiple_terms
 from fastapi import (
     APIRouter,
     Depends,
@@ -24,7 +25,8 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.utils.new_records import get_records_from_db
-from app.models import CSVHeaders
+from app.models.csv_headers import CSVHeaders
+from app.models.sub_glcodes import SubGLCodes
 from app.utils.database import get_db
 from app.utils.excel_processor import (
     read_excel_file,
@@ -146,16 +148,20 @@ async def check_duplicate_file(
                 "error": "No valid records found in the file",
             },
         )
+    
+    # Before checking for duplicates, validate the uploaded file data with the database (sub_gl_code), to check the entries are correct 
+    
 
     duplicates = []
     unique_set = set()
     unique_records = []
     for i, rec in enumerate(records):
-        key = (rec["SubGLCode"], rec["CostCenterID"])
+        key = (rec["SubGLCode"], rec["BCode"])
         if key not in unique_set:
             unique_set.add(key)
             unique_records.append(rec)
         else:
+            
             duplicates.append(
                 {
                     "row": i,
@@ -384,8 +390,6 @@ async def process_batch(
     result = await db.execute(stmt)
     existing_records = result.scalars().all()
 
-    print(f"Existing records fetched: {len(existing_records)}: {[rec.BCode for rec in existing_records]}")
-
     # Build a lookup map
     existing_map = {(str(e.SubGLCode), str(e.BCode)): e for e in existing_records}
 
@@ -408,7 +412,6 @@ async def process_batch(
                 merged[k] = csv_val if csv_val not in (None, "", " ") else v
 
             matched.append(merged)
-            print(f"Matched record: {merged}")
         else:
             stats["new_records"] += 1
             new_objs.append(rec)
@@ -463,7 +466,6 @@ async def process_csv_file(
 
         if batch_matched is not None:
             all_matched_records.extend(batch_matched.to_dict("records"))
-            print(f"Batch matched records: {len(all_matched_records)}: {[all_matched_records]}")
 
         if batch_new is not None:
             all_new_records.extend(batch_new.to_dict("records"))
@@ -537,10 +539,10 @@ async def process_csv_file(
 
                 # update with CSV file values
                 new_record.update({
-                "CostCenterID": str(row.get("CostCenterID", "")),
                 "BCode": str(row.get("BCode", "")),
                 "BName": str(row.get("BName", "")),
                 "Region": str(row.get("Region", "")),
+                "BudgetAmount": str(row.get("BudgetAmount", "")),
                 
             })
                 
@@ -891,18 +893,28 @@ async def get_all_data(
         
         # Apply filters
         if search:
-            search_term = f"%{search}%"
-            query = query.where(
-                (CSVHeaders.CostCenterID.ilike(search_term)) |
-                (CSVHeaders.SubGLCode.ilike(search_term)) |
-                (CSVHeaders.SubHead.ilike(search_term)) |
-                (CSVHeaders.Region.ilike(search_term)) |
-                (CSVHeaders.BCode.ilike(search_term)) |
-                (CSVHeaders.BName.ilike(search_term)) |
-                (CSVHeaders.Head.ilike(search_term)) |
-                (CSVHeaders.CostCenter.ilike(search_term)) |
-                (CSVHeaders.Description.ilike(search_term))
-            )
+            search_terms = search_for_multiple_terms(search)
+            if search_terms:
+                # Create search conditions for each term
+                search_conditions = []
+                for term in search_terms:
+                    search_pattern = f"%{term}%"
+                    term_conditions = [
+                        CSVHeaders.CostCenterID.ilike(search_pattern),
+                        CSVHeaders.SubGLCode.ilike(search_pattern),
+                        CSVHeaders.SubHead.ilike(search_pattern),
+                        CSVHeaders.Region.ilike(search_pattern),
+                        CSVHeaders.BCode.ilike(search_pattern),
+                        CSVHeaders.BName.ilike(search_pattern),
+                        CSVHeaders.Head.ilike(search_pattern),
+                        CSVHeaders.CostCenter.ilike(search_pattern),
+                        CSVHeaders.Description.ilike(search_pattern)
+                    ]
+                    search_conditions.append(or_(*term_conditions))
+                
+                # Combine all term conditions with AND (all terms must match)
+                if search_conditions:
+                    query = query.where(and_(*search_conditions))
         
         if cost_center_id:
             query = query.where(CSVHeaders.CostCenterID.ilike(f"%{cost_center_id}%"))
@@ -922,18 +934,26 @@ async def get_all_data(
         
         # Apply the same filters to count query
         if search:
-            search_term = f"%{search}%"
-            count_query = count_query.where(
-                (CSVHeaders.CostCenterID.ilike(search_term)) |
-                (CSVHeaders.SubGLCode.ilike(search_term)) |
-                (CSVHeaders.SubHead.ilike(search_term)) |
-                (CSVHeaders.Region.ilike(search_term)) |
-                (CSVHeaders.BCode.ilike(search_term)) |
-                (CSVHeaders.BName.ilike(search_term)) |
-                (CSVHeaders.Head.ilike(search_term)) |
-                (CSVHeaders.CostCenter.ilike(search_term)) |
-                (CSVHeaders.Description.ilike(search_term))
-            )
+            search_terms = search_for_multiple_terms(search)
+            if search_terms:
+                search_conditions = []
+                for term in search_terms:
+                    search_pattern = f"%{term}%"
+                    term_conditions = [
+                        CSVHeaders.CostCenterID.ilike(search_pattern),
+                        CSVHeaders.SubGLCode.ilike(search_pattern),
+                        CSVHeaders.SubHead.ilike(search_pattern),
+                        CSVHeaders.Region.ilike(search_pattern),
+                        CSVHeaders.BCode.ilike(search_pattern),
+                        CSVHeaders.BName.ilike(search_pattern),
+                        CSVHeaders.Head.ilike(search_pattern),
+                        CSVHeaders.CostCenter.ilike(search_pattern),
+                        CSVHeaders.Description.ilike(search_pattern)
+                    ]
+                    search_conditions.append(or_(*term_conditions))
+                
+                if search_conditions:
+                    count_query = count_query.where(and_(*search_conditions))
         
         if cost_center_id:
             count_query = count_query.where(CSVHeaders.CostCenterID.ilike(f"%{cost_center_id}%"))
@@ -989,6 +1009,7 @@ async def get_all_data(
             },
             "filters": {
                 "search": search,
+                "search_terms": search_for_multiple_terms(search) if search else [],
                 "cost_center_id": cost_center_id,
                 "sub_gl_code": sub_gl_code,
                 "region": region,
@@ -999,7 +1020,7 @@ async def get_all_data(
     except Exception as e:
         logger.error(f"Error fetching data: {e}")
         raise HTTPException(status_code=500, detail=f"Error fetching data: {str(e)}")
-
+    
 
 @router.get("/api/filter-options")
 async def get_filter_options(db: AsyncSession = Depends(get_db)):

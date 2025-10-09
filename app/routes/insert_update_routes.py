@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, validator
 from pathlib import Path
 
 from app.utils.database import get_db
-from app.models import CSVHeaders
+from app.models.csv_headers import CSVHeaders
 
 logger = logging.getLogger(__name__)
 

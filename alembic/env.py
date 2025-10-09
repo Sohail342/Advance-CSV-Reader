@@ -4,7 +4,7 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from dotenv import load_dotenv
 import os
-from app.utils.database import Base
+from app.models.base import Base
 from alembic import context
 
 
@@ -31,6 +31,7 @@ target_metadata = Base.metadata
 
 
 def db_url():
+    print("Database URL:", os.getenv("SYNC_DATABASE_URL"))
     return os.getenv("SYNC_DATABASE_URL")
 
 

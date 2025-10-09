@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.models import CSVHeaders
+from app.models.csv_headers import CSVHeaders
 from fastapi import HTTPException
 
 
